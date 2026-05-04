@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Primary SEO -->
+    <title>NoeticAI — Audita tu conocimiento. Encuentra los vacíos antes de que ellos te encuentren a ti.</title>
+    <meta name="description" content="NoeticAI lee tus notas en Notion, las compara con tu programa de estudios y bibliografía, y muestra exactamente dónde tu comprensión se sostiene y dónde no. Una auditoría del conocimiento para estudiantes de posgrado y aprendices serios.">
+    <meta name="keywords" content="auditoría del conocimiento, herramienta de estudio para posgrado, app de estudio Notion, seguimiento de programa, cobertura de notas, análisis de vacíos de aprendizaje, epistemología, notas de filosofía, auditor de notas de investigación">
+    <meta name="author" content="NoeticAI">
+    <meta name="robots" content="index,follow,max-snippet:-1,max-image-preview:large,max-video-preview:-1">
+    <link rel="canonical" href="https://noeticai.app/">
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="NoeticAI">
+    <meta property="og:title" content="NoeticAI — Audita tu conocimiento. Encuentra los vacíos.">
+    <meta property="og:description" content="Una auditoría del conocimiento para estudiantes de posgrado. NoeticAI lee tus notas en Notion, las compara con tu programa y muestra dónde tu comprensión se sostiene y dónde no.">
+    <meta property="og:url" content="https://noeticai.app/">
+    <meta property="og:image" content="https://noeticai.app/og.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:locale" content="es_ES">
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:site" content="@noeticai">
+    <meta name="twitter:title" content="NoeticAI — Audita tu conocimiento.">
+    <meta name="twitter:description" content="Una auditoría del conocimiento para estudiantes de posgrado. Lee tus notas en Notion frente a tu programa y muestra dónde están los vacíos.">
+    <meta name="twitter:image" content="https://noeticai.app/og.png">
+
+    <!-- Theme & icons -->
+    <meta name="theme-color" content="#070707">
+    <meta name="color-scheme" content="dark">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23070707'/%3E%3Ctext x='50%25' y='62%25' font-family='Georgia,serif' font-style='italic' font-size='22' fill='%23a8221b' text-anchor='middle'%3EN%3C/text%3E%3C/svg%3E">
+
+    <!-- JSON-LD: SoftwareApplication -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "NoeticAI",
+      "applicationCategory": "EducationalApplication",
+      "operatingSystem": "Web, macOS, Windows, Linux",
+      "description": "Una herramienta de auditoría del conocimiento que lee tus notas, las compara con tu programa de estudios y bibliografía, y muestra dónde tu comprensión es completa, parcial o ausente.",
+      "url": "https://noeticai.app/",
+      "offers": [
+        {"@type": "Offer", "name": "Estudiante", "price": "0", "priceCurrency": "USD"},
+        {"@type": "Offer", "name": "Académico", "price": "12", "priceCurrency": "USD"},
+        {"@type": "Offer", "name": "Autónomo", "availability": "https://schema.org/PreOrder", "description": "Plan futuro: agentes especializados, tareas programadas y enriquecimiento continuo del corpus sin intervención. Aún no disponible; precio por anunciar."}
+      ]
+    }
+    </script>
+
+    <!-- JSON-LD: Organization -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "NoeticAI",
+      "url": "https://noeticai.app/",
+      "logo": "https://noeticai.app/logo.png",
+      "sameAs": [
+        "https://twitter.com/noeticai",
+        "https://github.com/noeticai"
+      ]
+    }
+    </script>
+
+    <!-- JSON-LD: FAQ -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        {"@type":"Question","name":"¿Qué hace NoeticAI exactamente?","acceptedAnswer":{"@type":"Answer","text":"NoeticAI lee las notas que mantienes en Notion, las compara con el programa de estudios y la bibliografía de un curso que estás tomando, y produce un mapa de cobertura: qué conceptos has cubierto, cuáles son parciales y cuáles faltan por completo."}},
+        {"@type":"Question","name":"¿Mis datos son privados?","acceptedAnswer":{"@type":"Answer","text":"Tus notas se leen mediante una integración de Notion con permisos limitados. Nunca entrenamos modelos con tus datos, nunca los vendemos y puedes revocar el acceso en cualquier momento. Las auditorías se almacenan cifradas en reposo."}},
+        {"@type":"Question","name":"¿Qué herramientas de notas son compatibles?","acceptedAnswer":{"@type":"Answer","text":"Notion es compatible hoy. Obsidian, Apple Notes y directorios de markdown plano están en beta privada."}},
+        {"@type":"Question","name":"¿Es solo una app de tarjetas de memoria?","acceptedAnswer":{"@type":"Answer","text":"No. NoeticAI no genera tarjetas de memoria ni te pone a prueba. Audita la integridad estructural de tus notas frente al corpus real de una disciplina. La salida es un mapa, no un ejercicio."}},
+        {"@type":"Question","name":"¿Puedo usarlo sin un programa de estudios?","acceptedAnswer":{"@type":"Answer","text":"Sí. Puedes proporcionar una lista de lecturas, un esquema de tesis o una pregunta de investigación, y NoeticAI inferirá el conjunto de conceptos y auditará tus notas frente a eso."}},
+        {"@type":"Question","name":"¿Qué disciplinas admite?","acceptedAnswer":{"@type":"Answer","text":"NoeticAI funciona para cualquier disciplina con uso intensivo de texto: filosofía, historia, literatura, derecho, teología, sociología, informática teórica. Es menos útil para ciencias de laboratorio y matemáticas puras."}}
+      ]
+    }
+    </script>
+
+    <!-- JSON-LD: BreadcrumbList -->
+    <script type="application/ld+json">
+    {
+      "@context":"https://schema.org",
+      "@type":"BreadcrumbList",
+      "itemListElement":[
+        {"@type":"ListItem","position":1,"name":"Inicio","item":"https://noeticai.app/"}
+      ]
+    }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
