@@ -10,6 +10,8 @@ interface WaitlistModalProps {
 export function WaitlistModal({ isOpen, onClose }: WaitlistModalProps) {
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
+  const [career, setCareer] = useState("");
+  const [useCase, setUseCase] = useState("");
   const [formState, setFormState] = useState<FormState>("idle");
   const [emailError, setEmailError] = useState("");
   const [globalError, setGlobalError] = useState("");
@@ -133,6 +135,8 @@ export function WaitlistModal({ isOpen, onClose }: WaitlistModalProps) {
           access_key: accessKey,
           email: email.trim(),
           name: name.trim() || undefined,
+          career: career.trim() || undefined,
+          use_case: useCase.trim() || undefined,
           subject: "NoeticAI waitlist signup",
           from_name: "NoeticAI Landing",
         }),
@@ -239,6 +243,41 @@ export function WaitlistModal({ isOpen, onClose }: WaitlistModalProps) {
                   onChange={(e) => setName(e.target.value)}
                   ref={firstInputRef}
                   disabled={formState === "submitting"}
+                />
+              </div>
+
+              <div className="wl-field">
+                <label className="wl-label" htmlFor="wl-career">
+                  Carrera o área de estudio{" "}
+                  <span style={{ color: "var(--fg-faint)" }}>(opcional)</span>
+                </label>
+                <input
+                  className="wl-input"
+                  id="wl-career"
+                  type="text"
+                  name="career"
+                  placeholder="Filosofía, derecho, posgrado en historia…"
+                  value={career}
+                  onChange={(e) => setCareer(e.target.value)}
+                  disabled={formState === "submitting"}
+                />
+              </div>
+
+              <div className="wl-field">
+                <label className="wl-label" htmlFor="wl-use-case">
+                  ¿Cómo planeas usarlo?{" "}
+                  <span style={{ color: "var(--fg-faint)" }}>(opcional)</span>
+                </label>
+                <textarea
+                  className="wl-input wl-textarea"
+                  id="wl-use-case"
+                  name="use_case"
+                  rows={3}
+                  placeholder="Auditar mis notas para los exámenes integrales, mapear mi tesis…"
+                  value={useCase}
+                  onChange={(e) => setUseCase(e.target.value)}
+                  disabled={formState === "submitting"}
+                  maxLength={500}
                 />
               </div>
 

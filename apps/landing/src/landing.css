@@ -562,6 +562,13 @@ footer.lp-foot { padding: 48px 0 36px; background: var(--canvas); }
 .wl-input::placeholder { color: var(--fg-faint); }
 .wl-input:focus { border-color: var(--accent-soft); }
 .wl-input.error { border-color: var(--red-fg); }
+.wl-textarea {
+  height: auto; min-height: 84px;
+  padding: 10px 14px;
+  resize: vertical;
+  line-height: 1.5;
+  font-family: var(--sans);
+}
 .wl-error { font-family: var(--mono); font-size: 11px; color: var(--red-fg); }
 .wl-submit {
   height: 42px; margin-top: 4px;
