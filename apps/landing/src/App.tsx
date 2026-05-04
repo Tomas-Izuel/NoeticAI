@@ -13,6 +13,7 @@ import { FAQ } from "./components/FAQ";
 import { FinalCTA } from "./components/FinalCTA";
 import { Footer } from "./components/Footer";
 import { WaitlistModal } from "./components/WaitlistModal";
+import { SpeedInsights } from "@vercel/speed-insights/next"
 
 export function App() {
   const [modalOpen, setModalOpen] = useState(false);
@@ -39,6 +40,7 @@ export function App() {
         <Footer />
       </div>
       <WaitlistModal isOpen={modalOpen} onClose={closeWaitlist} />
+      <SpeedInsights />
     </>
   );
 }
