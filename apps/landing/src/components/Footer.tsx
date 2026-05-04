@@ -50,26 +50,6 @@ export function Footer() {
               </li>
             </ul>
           </div>
-          <div className="foot-col">
-            <h4>Empresa</h4>
-            <ul>
-              <li>
-                <a href="/about">Acerca de</a>
-              </li>
-              <li>
-                <a href="/privacy">Privacidad</a>
-              </li>
-              <li>
-                <a href="/terms">Términos</a>
-              </li>
-              <li>
-                <a href="/security">Seguridad</a>
-              </li>
-              <li>
-                <a href="mailto:hello@noeticai.app">hello@noeticai.app</a>
-              </li>
-            </ul>
-          </div>
         </div>
         <div className="foot-bottom">
           <span>© 2026 NoeticAI Labs, Inc. · Todos los derechos reservados.</span>

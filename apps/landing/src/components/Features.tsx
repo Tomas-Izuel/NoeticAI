@@ -27,25 +27,13 @@ export function Features() {
             como un índice; actúa sobre las filas rojas.
           </p>
           <div className="feat-detail">
-            <div>
-              <span className="k">conceptos:</span>{" "}
-              <span className="v">84</span>
-            </div>
-            <div>
-              <span className="k">cubiertos:</span>{" "}
-              <span className="v">41</span>{" "}
-              <span className="c">/ 48,8 %</span>
-            </div>
-            <div>
-              <span className="k">incompletos:</span>{" "}
-              <span className="v">22</span>{" "}
-              <span className="c">/ 26,2 %</span>
-            </div>
-            <div>
-              <span className="k">ausentes:</span>{" "}
-              <span className="v">18</span>{" "}
-              <span className="c">/ 21,4 %</span>
-            </div>
+            <pre className="feat-art" aria-hidden="true">{
+              /* Art: horizontal stacked bars, three-state */
+              ""
+            }<span className="green">{"cubierto   ▓▓▓▓▓▓▓▓▓▓▓▓▓▓   41\n"}</span
+            ><span className="amber">{"incompleto ▒▒▒▒▒▒▒▒         22\n"}</span
+            ><span className="red">{"ausente    ░░░░░░           18\n"}</span
+            ><span className="c">{"                    — 84 conceptos"}</span></pre>
           </div>
         </article>
 
@@ -58,21 +46,16 @@ export function Features() {
             entre semanas — saca la costura a la luz y muestra ambas versiones.
           </p>
           <div className="feat-detail">
-            <div>
-              <span className="k">conflicto:</span>{" "}
-              <span className="v">Fiabilismo</span>
-            </div>
-            <div>
-              <span className="c">
-                › fiabilismo de procesos vs. de agentes
-              </span>
-            </div>
-            <div>
-              <span className="c">› confundidos en notas de la sem. 5</span>
-            </div>
-            <div>
-              <span className="c">› reconciliar vía Goldman 1979 §3</span>
-            </div>
+            <pre className="feat-art" aria-hidden="true"
+            ><span className="c">{"sem. 3  "}</span
+            ><span>{"fiabilismo de procesos\n"}</span
+            ><span className="c">{"        │\n"}</span
+            ><span className="c">{"sem. 5  "}</span
+            ><span>{"fiabilismo de agentes\n"}</span
+            ><span className="c">{"        │\n"}</span
+            ><span className="amber">{"        ◇ conflicto\n"}</span
+            ><span className="c">{"        │\n"}</span
+            ><span className="c">{"        └─ Goldman 1979 §3"}</span></pre>
           </div>
         </article>
 
@@ -85,19 +68,14 @@ export function Features() {
             bibliografía, NoeticAI se niega a escribirla.
           </p>
           <div className="feat-detail">
-            <div>
-              <span className="k">borrador:</span>{" "}
-              <span className="v">Coherentismo (¶1)</span>
-            </div>
-            <div>
-              <span className="c">› BonJour 1985, pp. 87–110</span>
-            </div>
-            <div>
-              <span className="c">› Olsson 2017, §§2–4</span>
-            </div>
-            <div>
-              <span className="c">› confianza: 0,94</span>
-            </div>
+            <pre className="feat-art" aria-hidden="true"
+            ><span className="c">{"╭──────────────────────────────────────╮\n"}</span
+            ><span>{"│ El coherentismo sostiene que una     │\n"}</span
+            ><span>{"│ creencia está justificada si forma   │\n"}</span
+            ><span>{"│ parte de un sistema coherente.       │\n"}</span
+            ><span className="c">{"╰──────────────────────────────────────╯\n"}</span
+            ><span className="k">{"  └─ BonJour 1985, p.87\n"}</span
+            ><span className="c">{"     confianza: 0.94"}</span></pre>
           </div>
         </article>
 
@@ -110,19 +88,16 @@ export function Features() {
             forma de tu comprensión, hecha visible.
           </p>
           <div className="feat-detail">
-            <div>
-              <span className="k">vista:</span>{" "}
-              <span className="v">constelación</span>
-            </div>
-            <div>
-              <span className="c">› 84 nodos · 217 aristas</span>
-            </div>
-            <div>
-              <span className="c">› 3 subgrafos aislados</span>
-            </div>
-            <div>
-              <span className="c">› ⌘+K para enfocar un nodo</span>
-            </div>
+            <pre className="feat-art" aria-hidden="true"
+            ><span>{"  CVJ ──── Gettier ──── Contexto\n"}</span
+            ><span className="c">{"   │                       │\n"}</span
+            ><span>{"   ├── Fiabilismo       Extern.\n"}</span
+            ><span className="c">{"   │       │\n"}</span
+            ><span className="c">{"   │   Goldman 1979\n"}</span
+            ><span className="c">{"   │\n"}</span
+            ><span>{"   └── Coherentismo\n"}</span
+            ><span>{"\n"}</span
+            ><span className="c">{"                       ○ aislado"}</span></pre>
           </div>
         </article>
 
@@ -135,19 +110,12 @@ export function Features() {
             has trabajado en profundidad pesan en consecuencia.
           </p>
           <div className="feat-detail">
-            <div>
-              <span className="k">fuentes:</span>{" "}
-              <span className="v">14</span>
-            </div>
-            <div>
-              <span className="c">› 9 trabajadas a fondo</span>
-            </div>
-            <div>
-              <span className="c">› 3 citadas pero no leídas</span>
-            </div>
-            <div>
-              <span className="c">› 2 ausentes del corpus</span>
-            </div>
+            <pre className="feat-art" aria-hidden="true"
+            ><span className="green">{"BonJour 1985   ████████████  trabajada\n"}</span
+            ><span className="amber">{"Goldman 1979   ████████░░░░  parcial\n"}</span
+            ><span className="amber">{"Olsson 2017    ████░░░░░░░░  parcial\n"}</span
+            ><span className="red">{"Zagzebski      ░░░░░░░░░░░░  no leída\n"}</span
+            ><span className="red">{"Williams 2001  ░░░░░░░░░░░░  no leída"}</span></pre>
           </div>
         </article>
 
@@ -160,21 +128,16 @@ export function Features() {
             tienes que preguntarte si el mapa está al día.
           </p>
           <div className="feat-detail">
-            <div>
-              <span className="k">última sinc:</span>{" "}
-              <span className="v">hace 2 min</span>
-            </div>
-            <div>
-              <span className="c">› +412 palabras sobre Gettier</span>
-            </div>
-            <div>
-              <span className="c">› 12 conceptos reevaluados</span>
-            </div>
-            <div>
-              <span className="c">
-                › 1 veredicto cambió: ámbar → verde
-              </span>
-            </div>
+            <pre className="feat-art" aria-hidden="true"
+            ><span className="c">{"─── hace 4 min ─────────────────────\n"}</span
+            ><span>{"  Gettier    "}</span
+            ><span className="amber">{"ámbar"}</span
+            ><span>{" → "}</span
+            ><span className="green">{"verde\n"}</span
+            ><span className="c">{"─── hace 2 min ─────────────────────\n"}</span
+            ><span>{"  +412 palabras · 12 reevaluados\n"}</span
+            ><span className="c">{"─── ahora ───────────────────────────\n"}</span
+            ><span className="c">{"  sincronizando..."}</span></pre>
           </div>
         </article>
       </div>
