@@ -109,16 +109,19 @@ export function WaitlistModal({ isOpen, onClose }: WaitlistModalProps) {
     setFormState("submitting");
     setGlobalError("");
 
-    const accessKey = import.meta.env.VITE_WEB3FORMS_KEY as string | undefined;
+    const accessKey = (import.meta.env.VITE_WEB3FORMS_KEY as string | undefined)?.trim();
 
-    if (!accessKey) {
-      console.warn(
-        "[NoeticAI waitlist] VITE_WEB3FORMS_KEY is not set. " +
-          "Sign up at https://web3forms.com with tomasizuel@gmail.com and paste the key into apps/landing/.env as VITE_WEB3FORMS_KEY=..."
+    if (!accessKey || accessKey === "your_access_key_here") {
+      console.error(
+        "[NoeticAI waitlist] VITE_WEB3FORMS_KEY is not set. Submissions are NOT being delivered.\n" +
+          "Fix: register at https://web3forms.com with tomasizuel@gmail.com, then set the key in:\n" +
+          "  • apps/landing/.env                  (local dev — restart `pnpm dev` after editing)\n" +
+          "  • Vercel → Settings → Environment Variables (production)"
       );
-      // Simulate success in dev so the page is testable
-      await new Promise<void>((resolve) => setTimeout(resolve, 800));
-      setFormState("success");
+      setFormState("error");
+      setGlobalError(
+        "El formulario aún no está conectado. Si eres el administrador, configura VITE_WEB3FORMS_KEY."
+      );
       return;
     }
 
@@ -140,9 +143,11 @@ export function WaitlistModal({ isOpen, onClose }: WaitlistModalProps) {
       if (data.success) {
         setFormState("success");
       } else {
+        console.error("[NoeticAI waitlist] Web3Forms rejected the submission:", data);
         throw new Error(data.message ?? "Error desconocido");
       }
-    } catch {
+    } catch (err) {
+      console.error("[NoeticAI waitlist] submission failed:", err);
       setFormState("error");
       setGlobalError("Algo salió mal. Por favor, inténtalo de nuevo.");
     }
