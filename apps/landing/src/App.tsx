@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, lazy, Suspense, startTransition, useEffect } from "react";
 import "./landing.css";
 import { Nav } from "./components/Nav";
 import { Hero } from "./components/Hero";
@@ -13,14 +13,28 @@ import { Pricing } from "./components/Pricing";
 import { FAQ } from "./components/FAQ";
 import { FinalCTA } from "./components/FinalCTA";
 import { Footer } from "./components/Footer";
-import { WaitlistModal } from "./components/WaitlistModal";
 import { SpeedInsights } from "@vercel/speed-insights/react";
+
+const WaitlistModal = lazy(() =>
+  import("./components/WaitlistModal").then((m) => ({ default: m.WaitlistModal }))
+);
 
 export function App() {
   const [modalOpen, setModalOpen] = useState(false);
 
-  const openWaitlist = () => setModalOpen(true);
+  const openWaitlist = () => startTransition(() => setModalOpen(true));
   const closeWaitlist = () => setModalOpen(false);
+
+  useEffect(() => {
+    const w = window as unknown as {
+      requestIdleCallback?: (cb: () => void) => number;
+      cancelIdleCallback?: (h: number) => void;
+    };
+    const idle = w.requestIdleCallback ?? ((cb: () => void) => window.setTimeout(cb, 1000) as unknown as number);
+    const cancel = w.cancelIdleCallback ?? ((h: number) => window.clearTimeout(h));
+    const handle = idle(() => { void import("./components/WaitlistModal"); });
+    return () => cancel(handle);
+  }, []);
 
   return (
     <>
@@ -28,20 +42,46 @@ export function App() {
         <Nav onWaitlist={openWaitlist} />
         <main>
           <Hero onWaitlist={openWaitlist} />
-          <InPlainWords />
-          <Trust />
-          <HowItWorks />
-          <CoverageStates />
-          <Features />
-          <Audiences />
-          <QuoteBlock />
-          <Pricing onWaitlist={openWaitlist} />
-          <FAQ />
-          <FinalCTA onWaitlist={openWaitlist} />
+          <div className="cv-section cv-section--in-plain-words">
+            <InPlainWords />
+          </div>
+          <div className="cv-section cv-section--trust">
+            <Trust />
+          </div>
+          <div className="cv-section cv-section--how-it-works">
+            <HowItWorks />
+          </div>
+          <div className="cv-section cv-section--coverage-states">
+            <CoverageStates />
+          </div>
+          <div className="cv-section cv-section--features">
+            <Features />
+          </div>
+          <div className="cv-section cv-section--audiences">
+            <Audiences />
+          </div>
+          <div className="cv-section cv-section--quote-block">
+            <QuoteBlock />
+          </div>
+          <div className="cv-section cv-section--pricing">
+            <Pricing onWaitlist={openWaitlist} />
+          </div>
+          <div className="cv-section cv-section--faq">
+            <FAQ />
+          </div>
+          <div className="cv-section cv-section--final-cta">
+            <FinalCTA onWaitlist={openWaitlist} />
+          </div>
         </main>
-        <Footer />
+        <div className="cv-section cv-section--footer">
+          <Footer />
+        </div>
       </div>
-      <WaitlistModal isOpen={modalOpen} onClose={closeWaitlist} />
+      {modalOpen && (
+        <Suspense fallback={null}>
+          <WaitlistModal isOpen={modalOpen} onClose={closeWaitlist} />
+        </Suspense>
+      )}
       <SpeedInsights />
     </>
   );

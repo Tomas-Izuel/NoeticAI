@@ -25,10 +25,7 @@ export function WaitlistModal({ isOpen, onClose }: WaitlistModalProps) {
   useEffect(() => {
     if (isOpen) {
       triggerRef.current = document.activeElement as HTMLElement;
-      // Move focus to first input after paint
-      requestAnimationFrame(() => {
-        firstInputRef.current?.focus();
-      });
+      firstInputRef.current?.focus();
     } else {
       triggerRef.current?.focus();
     }
@@ -160,9 +157,7 @@ export function WaitlistModal({ isOpen, onClose }: WaitlistModalProps) {
   const handleReset = () => {
     setFormState("idle");
     setGlobalError("");
-    requestAnimationFrame(() => {
-      firstInputRef.current?.focus();
-    });
+    firstInputRef.current?.focus();
   };
 
   if (!isOpen) return null;

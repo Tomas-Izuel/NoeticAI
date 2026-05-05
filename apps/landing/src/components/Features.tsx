@@ -1,6 +1,9 @@
+import { useAnimateOnVisible } from "../lib/useAnimateOnVisible";
+
 export function Features() {
+  const animateRef = useAnimateOnVisible<HTMLElement>(false);
   return (
-    <section className="section" id="features" aria-labelledby="features-title">
+    <section className="section" id="features" aria-labelledby="features-title" ref={animateRef}>
       <div className="container">
         <header className="section-head">
           <div className="section-eyebrow">Lo que hay dentro</div>

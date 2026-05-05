@@ -1,10 +1,13 @@
+import { useAnimateOnVisible } from "../lib/useAnimateOnVisible";
+
 interface HeroProps {
   onWaitlist: () => void;
 }
 
 export function Hero({ onWaitlist: _onWaitlist }: HeroProps) {
+  const animateRef = useAnimateOnVisible<HTMLElement>(true);
   return (
-    <section className="hero" aria-labelledby="hero-title">
+    <section className="hero" aria-labelledby="hero-title" ref={animateRef}>
       <div className="container">
         <div className="hero-grid">
           <div>
