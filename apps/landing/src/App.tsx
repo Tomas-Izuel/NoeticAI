@@ -2,6 +2,7 @@ import { useState } from "react";
 import "./landing.css";
 import { Nav } from "./components/Nav";
 import { Hero } from "./components/Hero";
+import { InPlainWords } from "./components/InPlainWords";
 import { Trust } from "./components/Trust";
 import { HowItWorks } from "./components/HowItWorks";
 import { CoverageStates } from "./components/CoverageStates";
@@ -27,6 +28,7 @@ export function App() {
         <Nav onWaitlist={openWaitlist} />
         <main>
           <Hero onWaitlist={openWaitlist} />
+          <InPlainWords />
           <Trust />
           <HowItWorks />
           <CoverageStates />

@@ -21,7 +21,7 @@ const FAQ_ITEMS = [
   {
     question: "¿Mis datos son privados?",
     answer:
-      "Tus notas se leen mediante una integración de Notion con permisos limitados que tú controlas. Nunca entrenamos modelos con tus datos, nunca los vendemos y puedes revocar el acceso en cualquier momento desde tu panel. Las auditorías se almacenan cifradas en reposo. La certificación SOC 2 Tipo II está en curso.",
+      "Tus notas se leen mediante una integración de Notion con permisos limitados que tú controlas. Nunca entrenamos modelos con tus datos, nunca los vendemos y puedes revocar el acceso en cualquier momento desde tu panel. Las revisiones se almacenan cifradas en reposo. La certificación SOC 2 Tipo II está en curso.",
   },
   {
     question: "¿Qué herramientas de notas son compatibles?",
@@ -31,7 +31,7 @@ const FAQ_ITEMS = [
   {
     question: "¿Es solo una app de tarjetas con pasos extra?",
     answer:
-      "No. NoeticAI no genera tarjetas de memoria ni te pone a prueba. Audita la integridad estructural de tus notas escritas frente al corpus real de una disciplina. La salida es un mapa de lo que sabes y lo que no, no un ejercicio de memorización.",
+      "No. NoeticAI no genera tarjetas de memoria ni te pone a prueba. Revisa la integridad estructural de tus notas escritas frente al corpus real de una disciplina. La salida es un mapa de lo que sabes y lo que no, no un ejercicio de memorización.",
   },
   {
     question: "¿Puedo usarlo sin un programa de estudios?",

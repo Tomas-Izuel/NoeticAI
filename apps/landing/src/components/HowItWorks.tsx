@@ -10,8 +10,8 @@ export function HowItWorks() {
           </h2>
           <p className="section-lede">
             NoeticAI no es un cuaderno, ni un generador de tarjetas, ni un
-            chatbot. Es una auditoría. Apuntas a lo que tienes y a lo que la
-            disciplina espera, y te dice la diferencia.
+            chatbot. Es una revisión sistemática. Apuntas a lo que tienes y a lo
+            que la disciplina espera, y te dice la diferencia.
           </p>
         </header>
 

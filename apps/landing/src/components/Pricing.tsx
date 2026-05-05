@@ -25,21 +25,20 @@ export function Pricing({ onWaitlist }: PricingProps) {
         <div className="pricing">
           {/* Free tier */}
           <div className="price">
-            <div className="price-name">Prueba gratuita</div>
+            <div className="price-name">Estudiante</div>
             <div className="price-num">
               0&nbsp;US$<span className="per">/ siempre</span>
             </div>
             <div className="price-tag">
-              Un curso. Auditoría completa. Sin ceremonia.
+              Un curso. Revisión completa. Sin ceremonia.
             </div>
             <ul>
               <li>Un curso o lista de lecturas activa</li>
               <li>Sincronización con Notion, análisis del programa</li>
               <li>Columna de cobertura y constelación</li>
+              <li>Hasta 100 conceptos auditados</li>
             </ul>
-            <button className="btn btn-outline" onClick={onWaitlist} type="button">
-              Unirse a la lista de espera
-            </button>
+            <a className="btn btn-outline" href="/start">Empezar →</a>
           </div>
 
           {/* Scholar tier */}
@@ -49,18 +48,16 @@ export function Pricing({ onWaitlist }: PricingProps) {
               12&nbsp;US$<span className="per">/ mes</span>
             </div>
             <div className="price-tag">
-              Un semestre entero de auditorías, en paralelo.
+              Un semestre entero de revisiones, en paralelo.
             </div>
             <ul>
-              <li>Hasta 10 cursos o listas de lecturas</li>
+              <li>Cursos y listas de lecturas ilimitados</li>
               <li>Sugerencias citadas a demanda</li>
               <li>Detección de conflictos entre notas</li>
               <li>Puntuación de confianza bibliográfica</li>
-              <li>Completado de notas en base a fuentes</li>
+              <li>Exportación a PDF y BibTeX</li>
             </ul>
-            <button className="btn btn-primary" onClick={onWaitlist} type="button">
-              Unirse a la lista de espera
-            </button>
+            <a className="btn btn-primary" href="/start?plan=scholar">Elegir Académico →</a>
           </div>
 
           {/* Autonomous tier — coming soon */}
@@ -82,8 +79,12 @@ export function Pricing({ onWaitlist }: PricingProps) {
               <li>Detección proactiva de nuevos vacíos</li>
               <li>Lecturas sugeridas extraídas mientras duermes</li>
             </ul>
-            <button className="btn btn-outline" onClick={onWaitlist} type="button">
-              Apuntarme a la lista
+            <button
+              className="btn btn-outline"
+              onClick={onWaitlist}
+              type="button"
+            >
+              Apuntarme a la lista →
             </button>
           </div>
         </div>

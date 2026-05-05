@@ -21,7 +21,7 @@ export function Audiences() {
           <div className="label">Estudiantes de posgrado</div>
           <h3>Aprueba tus exámenes integrales.</h3>
           <p>
-            Audita una lista de doscientas obras. Encuentra las diez con las que
+            Revisa una lista de doscientas obras. Encuentra las diez con las que
             no te has comprometido de verdad antes de que lo haga tu comité.
           </p>
         </article>
@@ -36,7 +36,7 @@ export function Audiences() {
         </article>
         <article className="aud">
           <div className="label">Investigadores</div>
-          <h3>Audita tu revisión bibliográfica.</h3>
+          <h3>Revisa tu bibliografía.</h3>
           <p>
             Mapea el territorio antes de escribir el artículo. Saca a la luz los
             conflictos en la literatura secundaria. Sabe qué citas te has
