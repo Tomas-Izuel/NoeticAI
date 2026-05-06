@@ -16,7 +16,7 @@ export function Hero({ onWaitlist: _onWaitlist }: HeroProps) {
               Una segunda lectura de tus apuntes, para estudiantes serios
             </div>
             <h1 id="hero-title">
-              Sabes lo que has leído. <span className="em">¿Sabes lo que te&nbsp;falta?</span>
+              Sabes lo que leíste. <span className="em">¿Sabes lo que te&nbsp;falta?</span>
             </h1>
             <p className="hero-lede">
               <strong>NoeticAI lee tus apuntes de Notion, los compara con el programa de tu curso, y te dice exactamente qué conceptos has dominado, cuáles están a medias, y cuáles ni siquiera has tocado.</strong>{" "}

@@ -8,7 +8,6 @@ export function Nav({ onWaitlist: _onWaitlist }: NavProps) {
       <nav className="lp-nav-inner" aria-label="Principal">
         <a className="lp-brand" href="/" aria-label="Inicio de NoeticAI">
           <span className="mark">NoeticAI</span>
-          <span className="tag">v1.4 · Beta</span>
         </a>
         <div className="lp-nav-links" role="list">
           <a href="#how" role="listitem">Cómo funciona</a>
@@ -18,7 +17,6 @@ export function Nav({ onWaitlist: _onWaitlist }: NavProps) {
           <a href="#faq" role="listitem">Preguntas</a>
         </div>
         <div className="lp-nav-cta">
-          <a className="btn btn-ghost btn-sm" href="/sign-in">Iniciar sesión</a>
           <a className="btn btn-primary btn-sm" href="/start">Revisar mis apuntes →</a>
         </div>
       </nav>
