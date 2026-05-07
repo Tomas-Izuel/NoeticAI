@@ -5,6 +5,9 @@ build
 .cache
 coverage
 
+# user-uploaded files — never commit
+apps/server/uploads/
+
 # env
 .env
 .env.local

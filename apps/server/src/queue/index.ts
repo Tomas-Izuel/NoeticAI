@@ -1,15 +1,29 @@
 import { Queue, Worker, Job, type JobsOptions } from "bullmq";
 import { redis } from "../redis/client";
 import { runIngest, type IngestResult } from "../ingest/pipeline";
+import {
+  processSyllabusJob,
+  type SyllabusExtractionResult,
+} from "../syllabus/job";
 
 export const queues = {
   noop: new Queue("noop", { connection: redis }),
-  ingest: new Queue<IngestJobData, IngestResult>("ingest", { connection: redis }),
+  ingest: new Queue<IngestJobData, IngestResult>("ingest", {
+    connection: redis,
+  }),
+  syllabus: new Queue<SyllabusJobData, SyllabusExtractionResult>("syllabus", {
+    connection: redis,
+  }),
 };
 
 export interface IngestJobData {
   userId: string;
   source: string;
+}
+
+export interface SyllabusJobData {
+  syllabusId: string;
+  userId: string;
 }
 
 let workersStarted = false;
@@ -45,10 +59,24 @@ export function startWorkers(): void {
   });
   ingestWorker.on("failed", (job, err) => {
     // eslint-disable-next-line no-console
-    console.error(
-      `[queue:ingest] job=${job?.id} failed:`,
-      err.message,
-    );
+    console.error(`[queue:ingest] job=${job?.id} failed:`, err.message);
+  });
+
+  // Concurrency=1: Opus calls are heavy and rare; serialising prevents
+  // resource contention and keeps extraction costs predictable.
+  // Error handling (DB status update) is done inside processSyllabusJob.
+  const syllabusWorker = new Worker<SyllabusJobData, SyllabusExtractionResult>(
+    "syllabus",
+    async (job) => processSyllabusJob(job.data),
+    { connection: redis, concurrency: 1 },
+  );
+  syllabusWorker.on("error", (err) => {
+    // eslint-disable-next-line no-console
+    console.error("[queue:syllabus] worker error:", err.message);
+  });
+  syllabusWorker.on("failed", (job, err) => {
+    // eslint-disable-next-line no-console
+    console.error(`[queue:syllabus] job=${job?.id} failed:`, err.message);
   });
 }
 
@@ -57,6 +85,15 @@ export async function enqueueIngest(
   opts?: JobsOptions,
 ): Promise<string> {
   const job = await queues.ingest.add("ingest", data, opts);
+  if (!job.id) throw new Error("BullMQ did not return a job id");
+  return job.id;
+}
+
+export async function enqueueSyllabusExtraction(
+  data: SyllabusJobData,
+  opts?: JobsOptions,
+): Promise<string> {
+  const job = await queues.syllabus.add("syllabus:extract", data, opts);
   if (!job.id) throw new Error("BullMQ did not return a job id");
   return job.id;
 }
@@ -81,8 +118,7 @@ export interface JobLookup {
 }
 
 export async function lookupJob(jobId: string): Promise<JobLookup | null> {
-  // Probe known queues. For Phase 1 only "ingest" matters; "noop" is here so
-  // future queues drop in without changing the API contract.
+  // Probe all known queues in registration order.
   for (const [name, queue] of Object.entries(queues)) {
     const job = await Job.fromId(queue, jobId);
     if (!job) continue;
@@ -93,9 +129,11 @@ export async function lookupJob(jobId: string): Promise<JobLookup | null> {
       queue: name,
       state,
       result: state === "completed" ? job.returnvalue : undefined,
-      failedReason: state === "failed" ? (job.failedReason ?? undefined) : undefined,
+      failedReason:
+        state === "failed" ? (job.failedReason ?? undefined) : undefined,
       progress:
-        typeof progress === "number" || (typeof progress === "object" && progress !== null)
+        typeof progress === "number" ||
+        (typeof progress === "object" && progress !== null)
           ? progress
           : undefined,
     };

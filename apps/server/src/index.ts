@@ -11,6 +11,7 @@ import { smokeLlmRouter } from "./dev/smoke-llm";
 import { ingestRouter } from "./dev/ingest";
 import { retrieveRouter } from "./dev/retrieve";
 import { jobsRouter } from "./jobs";
+import { syllabusRouter } from "./syllabus/router";
 
 const app = new Hono();
 
@@ -43,6 +44,7 @@ app.route("/", smokeLlmRouter);
 app.route("/", ingestRouter);
 app.route("/", retrieveRouter);
 app.route("/", jobsRouter);
+app.route("/", syllabusRouter);
 
 await runMigrations(pool);
 startWorkers();
