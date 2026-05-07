@@ -11,11 +11,12 @@ interface Sub {
 
 interface Health {
   status: "ok" | "degraded";
+  backend: "bedrock" | "ollama";
   subsystems: {
     db: Sub;
     redis: Sub;
-    bedrockLlm: Sub;
-    bedrockEmbed: Sub;
+    llm: Sub;
+    embed: Sub;
     bullmq: Sub;
   };
 }
@@ -92,12 +93,13 @@ function HealthPage() {
     <section style={{ maxWidth: 560, margin: "2rem auto", padding: "0 1rem" }}>
       <h1>Dev · Health</h1>
       <p>
-        Overall: <strong>{data.status}</strong>
+        Overall: <strong>{data.status}</strong> · backend{" "}
+        <code>{data.backend}</code>
       </p>
       <Pill name="Postgres" sub={data.subsystems.db} />
       <Pill name="Redis" sub={data.subsystems.redis} />
-      <Pill name="Bedrock LLM" sub={data.subsystems.bedrockLlm} />
-      <Pill name="Bedrock Embed" sub={data.subsystems.bedrockEmbed} />
+      <Pill name="LLM" sub={data.subsystems.llm} />
+      <Pill name="Embeddings" sub={data.subsystems.embed} />
       <Pill name="BullMQ" sub={data.subsystems.bullmq} />
     </section>
   );

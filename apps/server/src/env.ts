@@ -19,6 +19,15 @@ const EnvSchema = z.object({
   DATABASE_URL: z.string().url(),
   REDIS_URL: z.string().url(),
 
+  // AI backend selector. "bedrock" = production (AWS Bedrock); "ollama" = local dev.
+  NOETICAI_AI_BACKEND: z.enum(["bedrock", "ollama"]).default("bedrock"),
+
+  // --- Ollama settings (only active when NOETICAI_AI_BACKEND=ollama) ---
+  OLLAMA_BASE_URL: z.string().url().default("http://localhost:11434"),
+  NOETICAI_OLLAMA_LLM_MODEL: z.string().min(1).default("gemma4:e4b"),
+  NOETICAI_OLLAMA_EMBED_MODEL: z.string().min(1).default("bge-m3"),
+
+  // --- AWS / Bedrock settings (only active when NOETICAI_AI_BACKEND=bedrock) ---
   AWS_REGION: z.string().min(1),
   AWS_ACCESS_KEY_ID: z.string().min(1),
   AWS_SECRET_ACCESS_KEY: z.string().min(1),
@@ -31,15 +40,17 @@ const EnvSchema = z.object({
   NOETICAI_BEDROCK_EMBED_ID: z.string().min(1).default("cohere.embed-multilingual-v3"),
 
   BETTER_AUTH_SECRET: z.string().min(32),
-  BETTER_AUTH_URL: z.string().url().default("http://localhost:3000"),
-  WEB_URL: z.string().url().default("http://localhost:5174"),
+  BETTER_AUTH_URL: z.string().url().default("http://localhost:8080"),
+  WEB_URL: z.string().url().default("http://localhost:3000"),
 
   SECRET_BOX_KEY: base64Bytes(32),
 
-  // "1" → skip Bedrock pings in /health (saves dev tokens)
+  // "1" → skip AI pings in /health (saves dev tokens/time).
+  // Despite the legacy env var name "BEDROCK", this flag skips whichever
+  // backend (bedrock or ollama) is currently active.
   NOETICAI_HEALTH_SKIP_BEDROCK: z.enum(["0", "1"]).default("0"),
 
-  PORT: z.coerce.number().int().positive().default(3000),
+  PORT: z.coerce.number().int().positive().default(8080),
 });
 
 export type Env = z.infer<typeof EnvSchema>;
@@ -59,4 +70,6 @@ function loadEnv(): Env {
 
 export const env: Env = loadEnv();
 
-export const healthSkipBedrock = env.NOETICAI_HEALTH_SKIP_BEDROCK === "1";
+// Renamed from healthSkipBedrock — the env var name is intentionally preserved
+// to avoid downstream churn; the flag now skips whichever backend is active.
+export const healthSkipAi = env.NOETICAI_HEALTH_SKIP_BEDROCK === "1";

@@ -18,7 +18,8 @@ app.use("*", logger());
 app.use(
   "*",
   cors({
-    origin: [env.WEB_URL, "http://localhost:5173", "http://localhost:5174"],
+    // env.WEB_URL is the canonical web origin (3000). 5173 = landing.
+    origin: [env.WEB_URL, "http://localhost:5173"],
     credentials: true,
   }),
 );

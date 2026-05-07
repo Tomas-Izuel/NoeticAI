@@ -11,6 +11,10 @@ export interface EmbedConfig {
 
 export interface EmbedClient {
   embed(args: EmbedArgs): Promise<EmbedResult>;
+  // The model the client uses when no per-call override is given. Callers
+  // need this to filter existing rows BEFORE the embed call (e.g. the
+  // ingest pipeline's "skip if already embedded under this model" check).
+  readonly defaultModelId: string;
 }
 
 interface CohereEmbedResponse {
@@ -21,6 +25,7 @@ interface CohereEmbedResponse {
 
 export function createEmbed(cfg: EmbedConfig): EmbedClient {
   return {
+    defaultModelId: cfg.defaultModelId,
     embed: async (args) => {
       const modelId = args.modelId ?? cfg.defaultModelId;
       const client: BedrockRuntimeClient = getBedrockClient();

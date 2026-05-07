@@ -2,7 +2,7 @@ import { pool } from "./db";
 import { redis } from "./redis/client";
 import { queues } from "./queue";
 import { llm, embed } from "./ai";
-import { healthSkipBedrock } from "./env";
+import { healthSkipAi, env } from "./env";
 
 interface SubsystemResult {
   ok: boolean;
@@ -14,11 +14,12 @@ interface SubsystemResult {
 
 interface HealthReport {
   status: "ok" | "degraded";
+  backend: "bedrock" | "ollama";
   subsystems: {
     db: SubsystemResult;
     redis: SubsystemResult;
-    bedrockLlm: SubsystemResult;
-    bedrockEmbed: SubsystemResult;
+    llm: SubsystemResult;
+    embed: SubsystemResult;
     bullmq: SubsystemResult;
   };
 }
@@ -57,8 +58,8 @@ async function pingBullMq(): Promise<SubsystemResult> {
   return { ok: true, latencyMs: r.latencyMs, counts: r.value as Record<string, number> };
 }
 
-async function pingBedrockLlm(): Promise<SubsystemResult> {
-  if (healthSkipBedrock) return { ok: true, skipped: true };
+async function pingLlm(): Promise<SubsystemResult> {
+  if (healthSkipAi) return { ok: true, skipped: true };
   const r = await timed(() =>
     llm.haiku({
       system: "Reply with the single lowercase word: ok",
@@ -70,8 +71,8 @@ async function pingBedrockLlm(): Promise<SubsystemResult> {
   return r.ok ? { ok: true, latencyMs: r.latencyMs } : { ok: false, latencyMs: r.latencyMs, error: r.error };
 }
 
-async function pingBedrockEmbed(): Promise<SubsystemResult> {
-  if (healthSkipBedrock) return { ok: true, skipped: true };
+async function pingEmbed(): Promise<SubsystemResult> {
+  if (healthSkipAi) return { ok: true, skipped: true };
   const r = await timed(() => embed.embed({ texts: ["health check"] }));
   return r.ok ? { ok: true, latencyMs: r.latencyMs } : { ok: false, latencyMs: r.latencyMs, error: r.error };
 }
@@ -80,18 +81,19 @@ export async function healthReport(): Promise<HealthReport> {
   const [db, rds, llmRes, embRes, bull] = await Promise.all([
     pingDb(),
     pingRedis(),
-    pingBedrockLlm(),
-    pingBedrockEmbed(),
+    pingLlm(),
+    pingEmbed(),
     pingBullMq(),
   ]);
   const allOk = [db, rds, llmRes, embRes, bull].every((s) => s.ok);
   return {
     status: allOk ? "ok" : "degraded",
+    backend: env.NOETICAI_AI_BACKEND,
     subsystems: {
       db,
       redis: rds,
-      bedrockLlm: llmRes,
-      bedrockEmbed: embRes,
+      llm: llmRes,
+      embed: embRes,
       bullmq: bull,
     },
   };

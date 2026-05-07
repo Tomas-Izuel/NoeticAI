@@ -2,7 +2,6 @@ import { Hono } from "hono";
 import { auth } from "../auth";
 import { pool } from "../db";
 import { embed } from "../ai";
-import { env } from "../env";
 
 export const retrieveRouter = new Hono();
 
@@ -14,9 +13,11 @@ retrieveRouter.get("/dev/retrieve", async (c) => {
   if (!q) return c.json({ error: "missing q" }, 400);
   const k = Math.min(Number(c.req.query("k") ?? 5), 20);
 
+  // Use whatever model the active embed client defaults to (bge-m3 for
+  // Ollama, cohere.embed-multilingual-v3 for Bedrock). The retrieved rows
+  // are filtered by result.modelId so we only compare same-model vectors.
   const result = await embed.embed({
     texts: [q],
-    modelId: env.NOETICAI_BEDROCK_EMBED_ID,
     inputType: "search_query",
   });
   const queryVec = result.vectors[0];

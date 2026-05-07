@@ -3,7 +3,6 @@ import { schema } from "@noeticai/db";
 import { db, pool } from "../db";
 import { connectorRegistry } from "../connectors/registry";
 import { embed } from "../ai";
-import { env } from "../env";
 import { deriveFragments } from "./fragments";
 
 const EMBED_CONCURRENCY = 2;
@@ -18,14 +17,6 @@ export interface IngestResult {
   embeddingsSkipped: number;
   modelId: string;
   durationMs: number;
-}
-
-// Pick embed model per Subject language. Defaults to the multilingual variant
-// for Spanish (and any lang ≠ "en"). English-only Subjects get the english
-// variant. Dim is 1024 either way.
-function embedModelFor(lang: string): string {
-  if (lang === "en") return "cohere.embed-english-v3";
-  return env.NOETICAI_BEDROCK_EMBED_ID;
 }
 
 export async function runIngest(opts: {
@@ -110,16 +101,23 @@ export async function runIngest(opts: {
   }
 
   // Skip fragments that already have an embedding for the active model.
-  const modelId = embedModelFor("es"); // Phase 1: stub subject is always Spanish.
+  // The model is whatever the configured embed client uses — Cohere on
+  // Bedrock in prod, bge-m3 on Ollama in dev. Per-Subject language routing
+  // (multilingual vs english) lands when subjects.lang drives a per-call
+  // override in Phase 2.
+  const modelId = embed.defaultModelId;
   let embeddingsSkipped = 0;
   let embeddingsAdded = 0;
 
   const fragmentIds = fragmentsToEmbed.map((f) => f.id);
   if (fragmentIds.length > 0) {
-    const existing = await db.execute<{ fragment_id: string }>(sql`
-      SELECT fragment_id FROM ${schema.noteFragmentEmbeddings}
-      WHERE model_id = ${modelId} AND fragment_id = ANY(${fragmentIds})
-    `);
+    // pg requires an explicit text[] cast — Drizzle's sql template doesn't
+    // auto-promote JS arrays to PG arrays, but the driver does when cast.
+    const existing = await pool.query<{ fragment_id: string }>(
+      `SELECT fragment_id FROM note_fragment_embeddings
+       WHERE model_id = $1 AND fragment_id = ANY($2::text[])`,
+      [modelId, fragmentIds],
+    );
     const have = new Set(existing.rows.map((r) => r.fragment_id));
     embeddingsSkipped = have.size;
     const todo = fragmentsToEmbed.filter((f) => !have.has(f.id));
@@ -136,7 +134,6 @@ export async function runIngest(opts: {
         slice.map((batch) =>
           embed.embed({
             texts: batch.map((b) => b.text),
-            modelId,
             inputType: "search_document",
           }),
         ),
