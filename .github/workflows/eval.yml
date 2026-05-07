@@ -1,0 +1,39 @@
+name: eval
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm -r run typecheck
+      - name: Run eval skeleton
+        run: pnpm --filter @noeticai/server run eval
+        env:
+          DATABASE_URL: postgresql://stub
+          REDIS_URL: redis://stub
+          AWS_REGION: us-east-1
+          AWS_ACCESS_KEY_ID: stub
+          AWS_SECRET_ACCESS_KEY: stub
+          NOETICAI_BEDROCK_OPUS_ID: stub
+          NOETICAI_BEDROCK_SONNET_ID: stub
+          NOETICAI_BEDROCK_HAIKU_ID: stub
+          NOETICAI_BEDROCK_EMBED_ID: cohere.embed-multilingual-v3
+          BETTER_AUTH_SECRET: ci-only-32-character-min-secret-xxxxx
+          SECRET_BOX_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+          NOETICAI_HEALTH_SKIP_BEDROCK: "1"

@@ -1,0 +1,3 @@
+/* Imports the design CSS verbatim so the visual baseline applies unchanged.
+   Path resolves through Vite from apps/web/src/styles/ → /design/styles.css. */
+@import url("../../../../design/styles.css");

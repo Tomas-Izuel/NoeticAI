@@ -7,13 +7,26 @@
     "dev": "bun run --hot src/index.ts",
     "start": "bun run src/index.ts",
     "build": "bun build src/index.ts --target=bun --outdir=dist",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "bun test src",
+    "eval": "bun test __eval__"
   },
   "dependencies": {
-    "hono": "^4.6.12"
+    "@noeticai/ai": "workspace:*",
+    "@noeticai/audit-core": "workspace:*",
+    "@noeticai/connector-core": "workspace:*",
+    "@noeticai/db": "workspace:*",
+    "better-auth": "~1.2.12",
+    "bullmq": "^5.34.0",
+    "drizzle-orm": "^0.36.4",
+    "hono": "^4.6.12",
+    "ioredis": "^5.4.2",
+    "pg": "^8.13.1",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@types/bun": "^1.1.14",
+    "@types/pg": "^8.11.10",
     "typescript": "^5.6.3"
   }
 }

@@ -1,6 +1,9 @@
-import { Outlet, createRootRouteWithContext, Link } from "@tanstack/react-router";
+import { Outlet, createRootRouteWithContext } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/router-devtools";
 import type { QueryClient } from "@tanstack/react-query";
+
+// Minimal Phase 0 shell — mirrors /design/shell.jsx class names so the design
+// CSS applies. Subject switcher, breadcrumbs, search are wired in later phases.
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   component: RootLayout,
@@ -8,12 +11,16 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootLayout() {
   return (
-    <div style={{ fontFamily: "system-ui" }}>
-      <nav style={{ display: "flex", gap: "1rem", padding: "1rem", borderBottom: "1px solid #eee" }}>
-        <Link to="/">Home</Link>
-        <Link to="/about">About</Link>
-      </nav>
-      <main style={{ padding: "2rem" }}>
+    <div className="app">
+      <header className="topbar">
+        <div className="topbar-brand">
+          <span className="topbar-mark">Episteme</span>
+          <span className="topbar-tag">v0.0 · phase 0</span>
+        </div>
+        <nav className="topbar-bread" />
+        <div className="topbar-right" />
+      </header>
+      <main>
         <Outlet />
       </main>
       <TanStackRouterDevtools position="bottom-right" />

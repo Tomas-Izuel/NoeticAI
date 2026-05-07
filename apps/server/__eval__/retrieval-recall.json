@@ -1,0 +1,63 @@
+{
+  "_meta": {
+    "phase": 1,
+    "fixtureSource": "stub",
+    "language": "es",
+    "embedModel": "cohere.embed-multilingual-v3",
+    "passThreshold": 8,
+    "totalQueries": 10,
+    "description": "Each query's expected fragment must appear top-1 in the cosine retrieval. Eight or more passes the gate; below stops Phase 2 work."
+  },
+  "queries": [
+    {
+      "q": "qué es el regreso epistémico",
+      "expectedExternalId": "stub-note-001",
+      "expectedPosition": 1
+    },
+    {
+      "q": "el trilema de Agripa y sus tres salidas",
+      "expectedExternalId": "stub-note-002",
+      "expectedPosition": 1
+    },
+    {
+      "q": "creencias básicas y fundacionalismo",
+      "expectedExternalId": "stub-note-003",
+      "expectedPosition": 1
+    },
+    {
+      "q": "el dilema de Sellars contra el fundacionalismo",
+      "expectedExternalId": "stub-note-003",
+      "expectedPosition": 2
+    },
+    {
+      "q": "coherencia mutua dentro de un sistema de creencias",
+      "expectedExternalId": "stub-note-004",
+      "expectedPosition": 1
+    },
+    {
+      "q": "BonJour y la objeción del input empírico",
+      "expectedExternalId": "stub-note-004",
+      "expectedPosition": 3
+    },
+    {
+      "q": "infinitismo de Klein y cadenas infinitas",
+      "expectedExternalId": "stub-note-005",
+      "expectedPosition": 1
+    },
+    {
+      "q": "internalismo versus externalismo en la justificación",
+      "expectedExternalId": "stub-note-006",
+      "expectedPosition": 1
+    },
+    {
+      "q": "Pirrón y la suspensión del juicio",
+      "expectedExternalId": "stub-note-007",
+      "expectedPosition": 1
+    },
+    {
+      "q": "confiabilismo de Goldman y procesos cognitivos",
+      "expectedExternalId": "stub-note-008",
+      "expectedPosition": 1
+    }
+  ]
+}
