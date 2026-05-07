@@ -13,6 +13,7 @@ import { Pricing } from "./components/Pricing";
 import { FAQ } from "./components/FAQ";
 import { FinalCTA } from "./components/FinalCTA";
 import { Footer } from "./components/Footer";
+import { NotFound } from "./components/NotFound";
 import { SpeedInsights } from "@vercel/speed-insights/react";
 
 const WaitlistModal = lazy(() =>
@@ -25,6 +26,8 @@ export function App() {
   const openWaitlist = () => startTransition(() => setModalOpen(true));
   const closeWaitlist = () => setModalOpen(false);
 
+  const isHome = window.location.pathname === "/";
+
   useEffect(() => {
     const w = window as unknown as {
       requestIdleCallback?: (cb: () => void) => number;
@@ -35,6 +38,20 @@ export function App() {
     const handle = idle(() => { void import("./components/WaitlistModal"); });
     return () => cancel(handle);
   }, []);
+
+  if (!isHome) {
+    return (
+      <>
+        <NotFound onWaitlist={openWaitlist} />
+        {modalOpen && (
+          <Suspense fallback={null}>
+            <WaitlistModal isOpen={modalOpen} onClose={closeWaitlist} />
+          </Suspense>
+        )}
+        <SpeedInsights />
+      </>
+    );
+  }
 
   return (
     <>

@@ -4,7 +4,7 @@ interface HeroProps {
   onWaitlist: () => void;
 }
 
-export function Hero({ onWaitlist: _onWaitlist }: HeroProps) {
+export function Hero({ onWaitlist }: HeroProps) {
   const animateRef = useAnimateOnVisible<HTMLElement>(true);
   return (
     <section className="hero" aria-labelledby="hero-title" ref={animateRef}>
@@ -27,7 +27,7 @@ export function Hero({ onWaitlist: _onWaitlist }: HeroProps) {
               Una segunda lectura crítica de tus notas, que encuentra todo lo que te saltaste sin darte cuenta.
             </p>
             <div className="hero-cta">
-              <a className="btn btn-primary btn-lg" href="/start">Revisar un curso →</a>
+              <button className="btn btn-primary btn-lg" type="button" onClick={onWaitlist}>Revisar un curso →</button>
               <a className="btn btn-outline btn-lg" href="#how">Ver cómo funciona</a>
             </div>
             <div className="hero-meta" role="list">

@@ -2,7 +2,7 @@ interface FinalCTAProps {
   onWaitlist: () => void;
 }
 
-export function FinalCTA({ onWaitlist: _onWaitlist }: FinalCTAProps) {
+export function FinalCTA({ onWaitlist }: FinalCTAProps) {
   return (
     <section className="final-cta" aria-labelledby="final-title">
       <div className="container final-cta-inner">
@@ -14,12 +14,12 @@ export function FinalCTA({ onWaitlist: _onWaitlist }: FinalCTAProps) {
           gratis, y los vacíos que encuentre son tuyos para siempre.
         </p>
         <div className="actions">
-          <a className="btn btn-primary btn-lg" href="/start">
+          <button className="btn btn-primary btn-lg" type="button" onClick={onWaitlist}>
             Revisar mis apuntes →
-          </a>
-          <a className="btn btn-outline btn-lg" href="/demo">
+          </button>
+          <button className="btn btn-outline btn-lg" type="button" onClick={onWaitlist}>
             Ver demo de 90 segundos
-          </a>
+          </button>
         </div>
       </div>
     </section>

@@ -2241,11 +2241,15 @@ footer.lp-foot {
     padding: 10px 8px;
   }
 
-  /* Constellation strip: enforce the reduced negative margins set at 980px. */
+  /* Constellation strip: enforce the flat margins set at 980px, and shrink
+     the height to match how the SVG actually scales at narrow widths — the
+     460×220 viewBox letter-boxes down to ~138px tall at 375px, leaving
+     visible dead space above and below the graph. */
   .hv-constellation {
     margin-left: 0;
     margin-right: 0;
     border-radius: 4px;
+    height: 160px;
   }
 
   /* Ticker: enforce flat margins and let feed auto-scroll without bleeding. */
@@ -2367,6 +2371,70 @@ footer.lp-foot {
 [data-animate="false"] .feat-ascii .pulse,
 [data-animate="false"] .feat-ascii.constellation .drift {
   animation-play-state: paused !important;
+}
+
+/* ───────── 404 Not Found ───────── */
+.nf-overlay {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  background: var(--canvas);
+  position: relative;
+}
+
+.nf-overlay::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 60% 50% at 50% 40%, rgba(168, 34, 27, 0.06), transparent 70%);
+  pointer-events: none;
+}
+
+.nf-inner {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+  max-width: 560px;
+  width: 100%;
+}
+
+.nf-code {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: clamp(80px, 16vw, 140px);
+  line-height: 1;
+  letter-spacing: -0.04em;
+  color: var(--fg-whisper);
+  margin-bottom: 16px;
+  user-select: none;
+}
+
+.nf-title {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: clamp(24px, 3.6vw, 36px);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  margin: 0 0 18px;
+  color: var(--fg);
+}
+
+.nf-body {
+  font-family: var(--serif);
+  font-size: 17px;
+  line-height: 1.6;
+  color: var(--fg-muted);
+  margin: 0 0 36px;
+  text-wrap: balance;
+}
+
+.nf-actions {
+  display: inline-flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  justify-content: center;
 }
 
 /* ───────── Reduced-motion escape hatch ───────── */

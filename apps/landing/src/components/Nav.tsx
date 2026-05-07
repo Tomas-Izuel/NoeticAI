@@ -2,7 +2,7 @@ interface NavProps {
   onWaitlist: () => void;
 }
 
-export function Nav({ onWaitlist: _onWaitlist }: NavProps) {
+export function Nav({ onWaitlist }: NavProps) {
   return (
     <header className="lp-nav" role="banner">
       <nav className="lp-nav-inner" aria-label="Principal">
@@ -17,7 +17,7 @@ export function Nav({ onWaitlist: _onWaitlist }: NavProps) {
           <a href="#faq" role="listitem">Preguntas</a>
         </div>
         <div className="lp-nav-cta">
-          <a className="btn btn-primary btn-sm" href="/start">Revisar mis apuntes →</a>
+          <button className="btn btn-primary btn-sm" type="button" onClick={onWaitlist}>Revisar mis apuntes →</button>
         </div>
       </nav>
     </header>
