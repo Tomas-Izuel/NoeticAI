@@ -6,6 +6,10 @@ import {
   type SyllabusExtractionResult,
 } from "../syllabus/job";
 import { processAuditJob, type AuditJobResult } from "../audit/job";
+import {
+  processSourceIngestJob,
+  type SourceIngestResult,
+} from "../bibliography/job";
 
 export interface IngestJobData {
   userId: string;
@@ -21,6 +25,11 @@ export interface AuditJobData {
   auditRunId: string;
 }
 
+export interface SourceIngestJobData {
+  sourceId: string;
+  userId: string;
+}
+
 export const queues = {
   noop: new Queue("noop", { connection: redis }),
   ingest: new Queue<IngestJobData, IngestResult>("ingest", {
@@ -30,6 +39,9 @@ export const queues = {
     connection: redis,
   }),
   audit: new Queue<AuditJobData, AuditJobResult>("audit", {
+    connection: redis,
+  }),
+  sourceIngest: new Queue<SourceIngestJobData, SourceIngestResult>("source-ingest", {
     connection: redis,
   }),
 };
@@ -107,6 +119,23 @@ export function startWorkers(): void {
     // eslint-disable-next-line no-console
     console.error(`[queue:audit] job=${job?.id} failed:`, err.message);
   });
+
+  // Concurrency=2: embed-heavy, not LLM-heavy. Two jobs in flight saturates
+  // Cohere/Bedrock embed quota without overloading the single Bun process.
+  // Lift to ≥4 when apps/worker splits from apps/server per prod-changes §7.
+  const sourceIngestWorker = new Worker<SourceIngestJobData, SourceIngestResult>(
+    "source-ingest",
+    async (job) => processSourceIngestJob(job.data),
+    { connection: redis, concurrency: 2 },
+  );
+  sourceIngestWorker.on("error", (err) => {
+    // eslint-disable-next-line no-console
+    console.error("[queue:source-ingest] worker error:", err.message);
+  });
+  sourceIngestWorker.on("failed", (job, err) => {
+    // eslint-disable-next-line no-console
+    console.error(`[queue:source-ingest] job=${job?.id} failed:`, err.message);
+  });
 }
 
 export async function enqueueIngest(
@@ -132,6 +161,15 @@ export async function enqueueAuditRun(
   opts?: JobsOptions,
 ): Promise<string> {
   const job = await queues.audit.add("audit:run", data, opts);
+  if (!job.id) throw new Error("BullMQ did not return a job id");
+  return job.id;
+}
+
+export async function enqueueSourceIngest(
+  data: SourceIngestJobData,
+  opts?: JobsOptions,
+): Promise<string> {
+  const job = await queues.sourceIngest.add("source:ingest", data, opts);
   if (!job.id) throw new Error("BullMQ did not return a job id");
   return job.id;
 }

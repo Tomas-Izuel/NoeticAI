@@ -16,7 +16,7 @@ function Home() {
         <li><Link to="/auth/sign-in">Sign in</Link></li>
         <li><Link to="/auth/sign-up">Sign up</Link></li>
         <li><Link to="/onboarding">Onboarding (placeholder)</Link></li>
-        <li><Link to="/bibliography">Bibliography (placeholder)</Link></li>
+        <li><Link to="/bibliography" search={{ subjectId: undefined }}>Bibliography</Link></li>
         <li><Link to="/plan">Plan (placeholder)</Link></li>
         <li><Link to="/settings">Settings (placeholder)</Link></li>
         <li><Link to="/dev/health">Dev · Health</Link></li>

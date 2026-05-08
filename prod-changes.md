@@ -169,4 +169,39 @@ the dev loop fast on Ollama. Each must be closed before shipping.
 
 ---
 
-Last updated: 2026-05-07 (Phase 3 backend + dev threshold override).
+## Phase 4 dev shortcuts
+
+These items are intentional shortcuts taken during Phase 4 implementation to keep
+the dev loop fast on Ollama. Each must be closed before shipping.
+
+- [ ] **Bibliography PDF storage is local filesystem** (`apps/server/src/bibliography/storage.ts`). Files
+  go to `apps/server/uploads/sources/` on disk. Switch to S3/R2 for production (already
+  tracked in §6 above). The `storeSourcePdf` function is the only call site; swap the impl there.
+- [ ] **Source chunk embeddings use Ollama `bge-m3`** in dev (`model_id = bge-m3`). Run a re-embed
+  job against the Cohere multilingual model after switching to Bedrock. The §1 re-embed plan
+  must now cover **three** tables: `note_fragment_embeddings`, `concept_embeddings`, and
+  `source_chunk_embeddings`. Without all three under the same `model_id`, Phase 5 retrieval
+  finds zero matches.
+- [ ] **No OCR for scanned PDFs**. The chunker throws if `unpdf` returns near-empty page text;
+  the source row lands `status='failed'` with a clear message. v1.1 task: integrate a
+  Bedrock-Textract or Tesseract path for image-only PDFs.
+- [ ] **URL ingest uses crude HTML-tag-strip** (`apps/server/src/bibliography/fetch-url.ts`).
+  No `@mozilla/readability`. Failure mode: nav menus / footer text leak into chunks and
+  degrade retrieval. If Phase 4 source-recall eval drops below 0.8 specifically on URL
+  fixtures, swap to readability + jsdom (or linkedom). The chunker is unaffected; only the
+  fetch-strip layer changes.
+- [ ] **Chapter labels deferred — `source_chunks.chapter_label` is always NULL in v1.**
+  Auto-detection from heading regex over per-page text was punted (~60% precision; trust-
+  burning false positives). v1.1: use `pdf.getOutline()` from unpdf to map page → chapter,
+  then UPDATE source_chunks SET chapter_label = … as a backfill. Schema column already
+  exists; this is a backfill, not a migration.
+- [ ] **Source-ingest worker concurrency=2**. Lift to ≥4 once `apps/worker` is split per §7.
+- [ ] **Source-ingest auto-retry not wired**. Failed jobs require manual reindex. Add
+  exponential-backoff retry per `plan.md` §9 retry block (`attempts: 5, backoff: { type:
+  'exponential', delay: 2000 }`) on transient errors only — distinguish HTTP 503 / quota
+  throttle from "URL returned 404". Pre-Bedrock-cutover, this is moot (Ollama embed
+  doesn't throttle); it becomes load-bearing once we hit Cohere quota.
+
+---
+
+Last updated: 2026-05-07 (Phase 4 bibliography ingest backend).

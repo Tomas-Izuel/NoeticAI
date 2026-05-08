@@ -13,6 +13,8 @@ import { retrieveRouter } from "./dev/retrieve";
 import { jobsRouter } from "./jobs";
 import { syllabusRouter } from "./syllabus/router";
 import { auditRouter } from "./audit/router";
+import { bibliographyRouter } from "./bibliography/router";
+import { subjectsRouter } from "./subjects/router";
 
 const app = new Hono();
 
@@ -47,6 +49,8 @@ app.route("/", retrieveRouter);
 app.route("/", jobsRouter);
 app.route("/", syllabusRouter);
 app.route("/", auditRouter);
+app.route("/", bibliographyRouter);
+app.route("/", subjectsRouter);
 
 await runMigrations(pool);
 startWorkers();

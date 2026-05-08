@@ -12,7 +12,12 @@ const BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? "";
 
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers);
-  if (init?.body && !headers.has("content-type")) {
+  // Only tag string bodies as JSON. FormData / Blob / URLSearchParams must let
+  // the browser set their own content-type (and, for FormData, the boundary).
+  if (
+    typeof init?.body === "string" &&
+    !headers.has("content-type")
+  ) {
     headers.set("content-type", "application/json");
   }
   const res = await fetch(`${BASE}${path}`, {

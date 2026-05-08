@@ -1,0 +1,63 @@
+{
+  "_meta": {
+    "phase": 4,
+    "fixtureSource": "phil411-bibliography",
+    "language": "en",
+    "embedModel": "cohere.embed-multilingual-v3",
+    "passThreshold": 8,
+    "totalQueries": 10,
+    "description": "Each query's expected source must appear in top-3 (NOT top-1 — sources are longer than fragments and exact passage retrieval is harder). Eight or more passes the gate."
+  },
+  "queries": [
+    {
+      "q": "the regress problem and three escapes",
+      "expectedSourceTitle": "BonJour 1985 — The Structure of Empirical Knowledge",
+      "expectedPagesLabel": "pp. 18–22"
+    },
+    {
+      "q": "foundationalism and basic beliefs",
+      "expectedSourceTitle": "BonJour 1985 — The Structure of Empirical Knowledge",
+      "expectedPagesLabel": "pp. 23–27"
+    },
+    {
+      "q": "coherentism and the web of belief",
+      "expectedSourceTitle": "BonJour 1985 — The Structure of Empirical Knowledge",
+      "expectedPagesLabel": "pp. 87–101"
+    },
+    {
+      "q": "internalism versus externalism in epistemology",
+      "expectedSourceTitle": "BonJour 1985 — The Structure of Empirical Knowledge",
+      "expectedPagesLabel": "pp. 3–12"
+    },
+    {
+      "q": "doxastic voluntarism and belief formation",
+      "expectedSourceTitle": "BonJour 1985 — The Structure of Empirical Knowledge",
+      "expectedPagesLabel": "pp. 33–40"
+    },
+    {
+      "q": "observation beliefs and their epistemic role",
+      "expectedSourceTitle": "BonJour 1985 — The Structure of Empirical Knowledge",
+      "expectedPagesLabel": "pp. 112–125"
+    },
+    {
+      "q": "the isolation objection against coherentism",
+      "expectedSourceTitle": "BonJour 1985 — The Structure of Empirical Knowledge",
+      "expectedPagesLabel": "pp. 107–111"
+    },
+    {
+      "q": "a priori justification and necessity",
+      "expectedSourceTitle": "BonJour 1985 — The Structure of Empirical Knowledge",
+      "expectedPagesLabel": "pp. 190–210"
+    },
+    {
+      "q": "truth and the goal of epistemic justification",
+      "expectedSourceTitle": "BonJour 1985 — The Structure of Empirical Knowledge",
+      "expectedPagesLabel": "pp. 7–13"
+    },
+    {
+      "q": "moderate foundationalism and fallibilism",
+      "expectedSourceTitle": "BonJour 1985 — The Structure of Empirical Knowledge",
+      "expectedPagesLabel": "pp. 25–33"
+    }
+  ]
+}

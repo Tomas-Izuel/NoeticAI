@@ -1,0 +1,20 @@
+{
+  "_meta": {
+    "phase": 4,
+    "fixtureSource": "phil411-bibliography",
+    "passThreshold": 8,
+    "description": "For each chunk position, the actual extracted pages_label must match the human-labeled value. Run after ingesting source-fixture.pdf. Labels below are hand-curated against the fixture."
+  },
+  "spotchecks": [
+    { "chunkPosition": 0, "expectedPagesLabel": "p. 1" },
+    { "chunkPosition": 1, "expectedPagesLabel": "pp. 1–2" },
+    { "chunkPosition": 2, "expectedPagesLabel": "p. 2" },
+    { "chunkPosition": 3, "expectedPagesLabel": "pp. 2–3" },
+    { "chunkPosition": 4, "expectedPagesLabel": "p. 3" },
+    { "chunkPosition": 5, "expectedPagesLabel": "pp. 3–4" },
+    { "chunkPosition": 6, "expectedPagesLabel": "p. 4" },
+    { "chunkPosition": 10, "expectedPagesLabel": "pp. 6–7" },
+    { "chunkPosition": 15, "expectedPagesLabel": "pp. 9–10" },
+    { "chunkPosition": 20, "expectedPagesLabel": "pp. 12–13" }
+  ]
+}
