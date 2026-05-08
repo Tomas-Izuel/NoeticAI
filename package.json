@@ -14,7 +14,8 @@
     "build": "pnpm -r run build",
     "typecheck": "pnpm -r run typecheck",
     "lint": "pnpm -r run lint",
-    "clean": "pnpm -r exec rm -rf dist node_modules .turbo"
+    "clean": "pnpm -r exec rm -rf dist node_modules .turbo",
+    "reset": "pnpm --filter @noeticai/server reset"
   },
   "devDependencies": {
     "typescript": "^5.6.3"

@@ -9,7 +9,8 @@
     "build": "bun build src/index.ts --target=bun --outdir=dist",
     "typecheck": "tsc --noEmit",
     "test": "bun test src",
-    "eval": "bun test __eval__"
+    "eval": "bun test __eval__",
+    "reset": "bun run scripts/reset.ts"
   },
   "dependencies": {
     "@noeticai/ai": "workspace:*",

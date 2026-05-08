@@ -1,0 +1,10 @@
+[
+  {
+    "conceptId": "placeholder-concept-id",
+    "fragmentId": "placeholder-fragment-id",
+    "expectedVerdict": "engages",
+    "conceptName": "Placeholder concept",
+    "conceptLearningObjective": "Understand the placeholder concept in depth.",
+    "fragmentText": "This paragraph provides a thorough explanation of the placeholder concept, defining its key properties and working through an example."
+  }
+]

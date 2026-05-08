@@ -7,30 +7,37 @@ import type {
   ResourceRef,
 } from "@noeticai/connector-core";
 import {
-  stubSubject,
-  stubUnits,
+  getStubSubject,
+  getStubUnits,
   listStubNoteSummaries,
   fetchStubNote,
 } from "./fixtures";
 
 // Phase 1 stub. Returns deterministic Spanish fixtures so the eval gate
-// (retrieval recall ≥ 8/10) is reproducible. Listing-level methods ignore
-// the userId — the stub is a single-user fixture.
+// (retrieval recall ≥ 8/10) is reproducible.
+//
+// Subject + unit ids are derived per-user (sha256(userId + name)), matching
+// the syllabus extraction path's id formula. This way a user who uploads an
+// "Epistemología" syllabus AND runs the stub ingest converges on a single
+// subject row — required for the audit pipeline to find both concepts and
+// fragments under the same subject.
 export const stubConnector: Connector = {
   source: "stub",
 
-  async listSubjects(): Promise<Subject[]> {
-    return [stubSubject];
+  async listSubjects({ userId }): Promise<Subject[]> {
+    return [getStubSubject(userId)];
   },
 
-  async listUnits({ subjectId }): Promise<Unit[]> {
-    if (subjectId !== stubSubject.id) return [];
-    return stubUnits;
+  async listUnits({ userId, subjectId }): Promise<Unit[]> {
+    const expected = getStubSubject(userId);
+    if (subjectId !== expected.id) return [];
+    return getStubUnits(userId);
   },
 
-  async listNotes({ subjectId, unitId }): Promise<NoteSummary[]> {
-    if (subjectId !== stubSubject.id) return [];
-    const all = listStubNoteSummaries();
+  async listNotes({ userId, subjectId, unitId }): Promise<NoteSummary[]> {
+    const expected = getStubSubject(userId);
+    if (subjectId !== expected.id) return [];
+    const all = listStubNoteSummaries(userId);
     return unitId ? all.filter((n) => n.unitId === unitId) : all;
   },
 

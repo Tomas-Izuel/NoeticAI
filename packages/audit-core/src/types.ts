@@ -1,9 +1,13 @@
 import type { VerdictState, ConceptFragmentVerdict } from "./verdict";
 
 export interface Thresholds {
-  greenDepth: number;
-  amberDepth: number;
-  minFragmentsForGreen: number;
+  // Phase 0–2 fields (Phase 2 used these names; preserved for back-compat).
+  greenDepth: number;             // alias for greenSimilarity. default 0.78
+  amberDepth: number;             // alias for amberSimilarity. default 0.55
+  minFragmentsForGreen: number;   // alias for greenMinFragments. default 2
+  // Phase 3 + Phase 5 fields (defaults shipped; usage gated to those phases).
+  conflictMinFragments?: number;            // default 3 — Phase 7b
+  hallucinationGuardSimilarity?: number;    // default 0.85 — Phase 5
 }
 
 export interface Concept {

@@ -5,16 +5,7 @@ import {
   processSyllabusJob,
   type SyllabusExtractionResult,
 } from "../syllabus/job";
-
-export const queues = {
-  noop: new Queue("noop", { connection: redis }),
-  ingest: new Queue<IngestJobData, IngestResult>("ingest", {
-    connection: redis,
-  }),
-  syllabus: new Queue<SyllabusJobData, SyllabusExtractionResult>("syllabus", {
-    connection: redis,
-  }),
-};
+import { processAuditJob, type AuditJobResult } from "../audit/job";
 
 export interface IngestJobData {
   userId: string;
@@ -25,6 +16,23 @@ export interface SyllabusJobData {
   syllabusId: string;
   userId: string;
 }
+
+export interface AuditJobData {
+  auditRunId: string;
+}
+
+export const queues = {
+  noop: new Queue("noop", { connection: redis }),
+  ingest: new Queue<IngestJobData, IngestResult>("ingest", {
+    connection: redis,
+  }),
+  syllabus: new Queue<SyllabusJobData, SyllabusExtractionResult>("syllabus", {
+    connection: redis,
+  }),
+  audit: new Queue<AuditJobData, AuditJobResult>("audit", {
+    connection: redis,
+  }),
+};
 
 let workersStarted = false;
 
@@ -78,6 +86,27 @@ export function startWorkers(): void {
     // eslint-disable-next-line no-console
     console.error(`[queue:syllabus] job=${job?.id} failed:`, err.message);
   });
+
+  // Concurrency=1: audit runs are heavy (Haiku × 80 concepts) and rare.
+  // Per-subject serialisation is implicit at concurrency=1; lift to 4 when
+  // we split a dedicated worker process per prod-changes.md §7.
+  // Error handling (DB status update) is done inside processAuditJob.
+  const auditWorker = new Worker<AuditJobData, AuditJobResult>(
+    "audit",
+    async (job) => processAuditJob(job.data),
+    {
+      connection: redis,
+      concurrency: 1,
+    },
+  );
+  auditWorker.on("error", (err) => {
+    // eslint-disable-next-line no-console
+    console.error("[queue:audit] worker error:", err.message);
+  });
+  auditWorker.on("failed", (job, err) => {
+    // eslint-disable-next-line no-console
+    console.error(`[queue:audit] job=${job?.id} failed:`, err.message);
+  });
 }
 
 export async function enqueueIngest(
@@ -94,6 +123,15 @@ export async function enqueueSyllabusExtraction(
   opts?: JobsOptions,
 ): Promise<string> {
   const job = await queues.syllabus.add("syllabus:extract", data, opts);
+  if (!job.id) throw new Error("BullMQ did not return a job id");
+  return job.id;
+}
+
+export async function enqueueAuditRun(
+  data: AuditJobData,
+  opts?: JobsOptions,
+): Promise<string> {
+  const job = await queues.audit.add("audit:run", data, opts);
   if (!job.id) throw new Error("BullMQ did not return a job id");
   return job.id;
 }

@@ -5,6 +5,8 @@ export const DEFAULT_THRESHOLDS: Thresholds = {
   greenDepth: 0.78,
   amberDepth: 0.55,
   minFragmentsForGreen: 2,
+  conflictMinFragments: 3,
+  hallucinationGuardSimilarity: 0.85,
 };
 
 // Pure derivation per plan.md §1.4. The web app re-runs this client-side

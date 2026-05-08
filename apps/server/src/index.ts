@@ -12,6 +12,7 @@ import { ingestRouter } from "./dev/ingest";
 import { retrieveRouter } from "./dev/retrieve";
 import { jobsRouter } from "./jobs";
 import { syllabusRouter } from "./syllabus/router";
+import { auditRouter } from "./audit/router";
 
 const app = new Hono();
 
@@ -45,6 +46,7 @@ app.route("/", ingestRouter);
 app.route("/", retrieveRouter);
 app.route("/", jobsRouter);
 app.route("/", syllabusRouter);
+app.route("/", auditRouter);
 
 await runMigrations(pool);
 startWorkers();

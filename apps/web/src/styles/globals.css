@@ -1,3 +1,5 @@
 /* Imports the design CSS verbatim so the visual baseline applies unchanged.
    Path resolves through Vite from apps/web/src/styles/ → /design/styles.css. */
 @import url("../../../../design/styles.css");
+@import url("../../../../design/screen-audit.css");
+/* Phase 5 will add: @import url("../../../../design/screen-concept.css"); */

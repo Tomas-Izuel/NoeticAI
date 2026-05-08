@@ -104,4 +104,69 @@ the dev loop fast on Ollama. Each must be closed before shipping.
 
 ---
 
-Last updated: 2026-05-06 (Phase 2 backend).
+## Phase 3 dev shortcuts
+
+These items are intentional shortcuts taken during Phase 3 implementation to keep
+the dev loop fast on Ollama. Each must be closed before shipping.
+
+- [ ] **Haiku verdict routing on Ollama**: `llm.haiku()` routes to whatever
+  the env-configured Ollama model is when `NOETICAI_AI_BACKEND=ollama`. The
+  Phase 3 kill-criterion gate (verdict accuracy ≥ 0.85) **does not apply on
+  gemma** — re-run the eval after flipping `NOETICAI_AI_BACKEND=bedrock`.
+- [ ] **Verdict-prompt JSON salvage may mask Bedrock prompt-contract drift**.
+  `apps/server/src/audit/align.ts` consumes the shared `parseLlmJson` helper
+  in `apps/server/src/ai/json.ts` (factored out of `syllabus/job.ts` in
+  Phase 3). The same leniency layers (markdown-fence stripping, outermost-
+  block extraction, depth-aware truncation salvage) that mask Ollama quirks
+  may also mask Haiku contract drift. After the Bedrock cutover, re-run the
+  Phase 3 eval harness and remove leniency layers if they stop being needed.
+- [ ] **Embedding model_id invariant**: Phase 3 alignment retrieval filters
+  *both* `concept_embeddings` and `note_fragment_embeddings` on
+  `embed.defaultModelId`. The Phase 0–2 re-embed plan (§1 above) MUST cover
+  both tables before any audit returns non-empty results — the `model_id`
+  column on each side has to match. Concretely, after flipping
+  `NOETICAI_AI_BACKEND=bedrock`, run two re-embed sweeps:
+  - `note_fragment_embeddings` (already covered in §1).
+  - `concept_embeddings` — same shape, run identically. Without it, the
+    syllabus side has rows under `model_id = bge-m3` and the audit query
+    finds zero matching pairs.
+- [ ] **Audit worker concurrency=1**. The audit BullMQ worker currently caps
+  at `concurrency: 1` in `apps/server/src/queue/index.ts`. This serialises
+  audit fan-out (Haiku × 80 concepts) to keep the in-process Bun event loop
+  responsive while the HTTP server shares the same process. Once we split
+  workers into `apps/worker` (already tracked in §7), lift `audit` to ≥4 and
+  the per-Haiku-concurrency cap inside `align.ts` becomes the new bottleneck
+  (currently 4; bump to 8 once Bedrock quotas are increased).
+- [ ] **Local PDF storage already covered** — Phase 3 doesn't add new
+  storage. Bibliography uploads in Phase 4 will trip the same shortcut
+  (already tracked in §6).
+- [ ] **Bedrock cache-points still stubbed** — Phase 3 doesn't lean on
+  prompt caching (Haiku's verdict prompts are small enough to be cheap
+  uncached). Phase 5 grounded completion will. The `cachePoints` arg in
+  `packages/ai/src/bedrock.ts` remains a stub (already tracked in §4).
+- [ ] **Verdict-batch graceful degradation**. `apps/server/src/audit/align.ts`
+  catches empty/unparseable Haiku responses per concept, logs a warning, and
+  skips the concept (treats all its candidates as off-topic, so the
+  mastery_score lands red). This is dev resilience for gemma occasionally
+  refusing array-output prompts. On Bedrock + Haiku the catch should
+  effectively never trigger — if it does fire in production, the
+  kill-criterion eval will degrade silently. Add a counter / metric for
+  `verdict_batch_failed` per audit run before shipping, and fail the run if
+  > 5 % of batches degrade.
+- [ ] **Backend-aware audit thresholds**. `apps/server/src/audit/router.ts`
+  picks `DEV_OLLAMA_THRESHOLDS` (`greenDepth=0.6`, `amberDepth=0.4`,
+  `hallucinationGuardSimilarity=0.7`) when `NOETICAI_AI_BACKEND=ollama`,
+  and the spec defaults (`0.78 / 0.55 / 0.85` from
+  `@noeticai/audit-core`'s `DEFAULT_THRESHOLDS`) on Bedrock. bge-m3
+  produces lower absolute cosine scores than Cohere v3 — without this
+  override, dogfood audits land all-red even when the pipeline is
+  healthy. **Implication for the kill-criterion gate**: the Phase 3
+  eval (verdict accuracy ≥ 0.85, gap precision/recall ≥ 0.85) must run
+  with `NOETICAI_AI_BACKEND=bedrock` so it scores against
+  `DEFAULT_THRESHOLDS`, not the dev override. Delete
+  `DEV_OLLAMA_THRESHOLDS` once Phase 7e ships per-subject threshold
+  tuning — the user surface replaces the env-toggled override.
+
+---
+
+Last updated: 2026-05-07 (Phase 3 backend + dev threshold override).

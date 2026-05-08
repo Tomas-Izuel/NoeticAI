@@ -1,52 +1,77 @@
+import { createHash } from "node:crypto";
 import type { NoteContent, Subject, Unit, NoteSummary } from "@noeticai/connector-core";
 
 // Phase 1 fixtures. Spanish notes on epistemology — matches the design's
 // example domain (coherentismo, fundacionalismo, regreso epistémico). Eight
 // short notes across two units; enough breadth that retrieval has to
 // discriminate, not just dump back any paragraph.
+//
+// Subject id is content-addressed on (userId, name) — same formula as the
+// syllabus extraction path (apps/server/src/syllabus/job.ts). This lets the
+// stub-ingested notes share subject identity with a syllabus the user
+// uploads under the same name, so the audit pipeline finds both sides.
+//
+// Unit ids are scoped to the per-user subject id to avoid cross-tenant
+// collisions on the units PK.
 
-const SUBJECT_ID = "stub-subject-epistemologia";
-const UNIT_REGRESS_ID = "stub-unit-regreso";
-const UNIT_THEORIES_ID = "stub-unit-teorias";
+const SUBJECT_NAME = "Epistemología";
+const UNIT_REGRESS_LOCAL = "regreso";
+const UNIT_THEORIES_LOCAL = "teorias";
 
-export const stubSubject: Subject = {
-  id: SUBJECT_ID,
-  name: "Epistemología",
-  course: "FIL-201",
-  term: "2026-1",
-  glyph: "ε",
-};
+function getStubSubjectId(userId: string): string {
+  return createHash("sha256")
+    .update(userId + SUBJECT_NAME)
+    .digest("hex")
+    .slice(0, 24);
+}
 
-export const stubUnits: Unit[] = [
-  {
-    id: UNIT_REGRESS_ID,
-    subjectId: SUBJECT_ID,
-    order: 1,
-    name: "El problema del regreso",
-    weeksLabel: "Semanas 1–3",
-    sourceUnitRef: null,
-  },
-  {
-    id: UNIT_THEORIES_ID,
-    subjectId: SUBJECT_ID,
-    order: 2,
-    name: "Teorías de la justificación",
-    weeksLabel: "Semanas 4–6",
-    sourceUnitRef: null,
-  },
-];
+function getStubUnitId(userId: string, local: string): string {
+  return `${getStubSubjectId(userId)}:u-${local}`;
+}
 
-interface StubNote {
+export function getStubSubject(userId: string): Subject {
+  return {
+    id: getStubSubjectId(userId),
+    name: SUBJECT_NAME,
+    course: "FIL-201",
+    term: "2026-1",
+    glyph: "ε",
+  };
+}
+
+export function getStubUnits(userId: string): Unit[] {
+  const subjectId = getStubSubjectId(userId);
+  return [
+    {
+      id: getStubUnitId(userId, UNIT_REGRESS_LOCAL),
+      subjectId,
+      order: 1,
+      name: "El problema del regreso",
+      weeksLabel: "Semanas 1–3",
+      sourceUnitRef: null,
+    },
+    {
+      id: getStubUnitId(userId, UNIT_THEORIES_LOCAL),
+      subjectId,
+      order: 2,
+      name: "Teorías de la justificación",
+      weeksLabel: "Semanas 4–6",
+      sourceUnitRef: null,
+    },
+  ];
+}
+
+interface StubNoteFixture {
   externalId: string;
-  unitId: string;
+  unitLocal: string;
   title: string;
   blocks: NoteContent["blocks"];
 }
 
-export const stubNotes: StubNote[] = [
+const stubNoteFixtures: StubNoteFixture[] = [
   {
     externalId: "stub-note-001",
-    unitId: UNIT_REGRESS_ID,
+    unitLocal: UNIT_REGRESS_LOCAL,
     title: "Introducción al regreso epistémico",
     blocks: [
       {
@@ -68,7 +93,7 @@ export const stubNotes: StubNote[] = [
   },
   {
     externalId: "stub-note-002",
-    unitId: UNIT_REGRESS_ID,
+    unitLocal: UNIT_REGRESS_LOCAL,
     title: "El trilema de Agripa",
     blocks: [
       {
@@ -90,7 +115,7 @@ export const stubNotes: StubNote[] = [
   },
   {
     externalId: "stub-note-003",
-    unitId: UNIT_THEORIES_ID,
+    unitLocal: UNIT_THEORIES_LOCAL,
     title: "Fundacionalismo clásico",
     blocks: [
       {
@@ -112,7 +137,7 @@ export const stubNotes: StubNote[] = [
   },
   {
     externalId: "stub-note-004",
-    unitId: UNIT_THEORIES_ID,
+    unitLocal: UNIT_THEORIES_LOCAL,
     title: "Coherentismo",
     blocks: [
       {
@@ -139,7 +164,7 @@ export const stubNotes: StubNote[] = [
   },
   {
     externalId: "stub-note-005",
-    unitId: UNIT_THEORIES_ID,
+    unitLocal: UNIT_THEORIES_LOCAL,
     title: "Infinitismo",
     blocks: [
       {
@@ -161,7 +186,7 @@ export const stubNotes: StubNote[] = [
   },
   {
     externalId: "stub-note-006",
-    unitId: UNIT_THEORIES_ID,
+    unitLocal: UNIT_THEORIES_LOCAL,
     title: "Justificación interna y externa",
     blocks: [
       {
@@ -183,7 +208,7 @@ export const stubNotes: StubNote[] = [
   },
   {
     externalId: "stub-note-007",
-    unitId: UNIT_REGRESS_ID,
+    unitLocal: UNIT_REGRESS_LOCAL,
     title: "Pirrón y el escepticismo antiguo",
     blocks: [
       {
@@ -205,7 +230,7 @@ export const stubNotes: StubNote[] = [
   },
   {
     externalId: "stub-note-008",
-    unitId: UNIT_THEORIES_ID,
+    unitLocal: UNIT_THEORIES_LOCAL,
     title: "Confiabilismo de procesos",
     blocks: [
       {
@@ -227,17 +252,17 @@ export const stubNotes: StubNote[] = [
   },
 ];
 
-export function listStubNoteSummaries(): NoteSummary[] {
-  return stubNotes.map((n) => ({
+export function listStubNoteSummaries(userId: string): NoteSummary[] {
+  return stubNoteFixtures.map((n) => ({
     ref: { source: "stub", externalId: n.externalId, kind: "page" },
     title: n.title,
     updatedAtExternal: "2026-05-01T00:00:00.000Z",
-    unitId: n.unitId,
+    unitId: getStubUnitId(userId, n.unitLocal),
   }));
 }
 
 export function fetchStubNote(externalId: string): NoteContent | null {
-  const n = stubNotes.find((x) => x.externalId === externalId);
+  const n = stubNoteFixtures.find((x) => x.externalId === externalId);
   if (!n) return null;
   return {
     ref: { source: "stub", externalId: n.externalId, kind: "page" },

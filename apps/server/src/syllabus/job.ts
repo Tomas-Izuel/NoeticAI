@@ -7,8 +7,9 @@ import { sql } from "drizzle-orm";
 import { schema } from "@noeticai/db";
 import { db, pool } from "../db";
 import { llm, embed } from "../ai";
+import { parseLlmJson } from "../ai/json";
 import { extractPdfText } from "./extract";
-import { buildExtractionPrompt, type ExtractedSyllabus } from "./prompt";
+import { buildExtractionPrompt } from "./prompt";
 
 // Resolve server root so we can build absolute paths to stored PDFs.
 const SERVER_ROOT = (() => {
@@ -44,125 +45,6 @@ const ExtractedSyllabusSchema = z.object({
   subject: ExtractedSubjectSchema,
   units: z.array(ExtractedUnitSchema),
 });
-
-// ---------------------------------------------------------------------------
-// JSON parsing with leniency
-// ---------------------------------------------------------------------------
-
-/**
- * Parse the LLM's text output to ExtractedSyllabus. The model is instructed
- * to return bare JSON, but in dev (Ollama/gemma) it may wrap the output in
- * markdown fences. We handle that gracefully.
- */
-function parseLlmResponse(raw: string): ExtractedSyllabus {
-  let text = raw.trim();
-
-  // Strip ```json ... ``` or ``` ... ``` fences if present.
-  text = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
-
-  // Try a direct parse first.
-  try {
-    const parsed: unknown = JSON.parse(text);
-    return ExtractedSyllabusSchema.parse(parsed);
-  } catch {
-    // Outermost {...} block.
-    const match = text.match(/\{[\s\S]*\}/);
-    if (match && match[0]) {
-      try {
-        const parsed: unknown = JSON.parse(match[0]);
-        return ExtractedSyllabusSchema.parse(parsed);
-      } catch {
-        /* fall through */
-      }
-    }
-    // Truncation salvage: depth-aware close. Walks the JSON tracking nesting
-    // and string state, finds the longest valid prefix, and synthesises the
-    // closing brackets/braces. Dev safety net — `prod-changes.md` notes the
-    // removal once we're on Bedrock + Opus.
-    const salvaged = trySalvageTruncatedJson(text);
-    if (salvaged) {
-      try {
-        const parsed: unknown = JSON.parse(salvaged);
-        return ExtractedSyllabusSchema.parse(parsed);
-      } catch {
-        /* fall through */
-      }
-    }
-    throw new Error(
-      `LLM response could not be parsed as ExtractedSyllabus. ` +
-        `length=${raw.length}. ` +
-        `head=${JSON.stringify(raw.slice(0, 200))}. ` +
-        `tail=${JSON.stringify(raw.slice(-200))}.`,
-    );
-  }
-}
-
-function trySalvageTruncatedJson(text: string): string | null {
-  // Walk the text once, collecting every position right after a `}` that's
-  // not inside a string — those are the only "between-fields" cuts we can
-  // close cleanly. Then iterate them right-to-left (longest prefix first),
-  // synthesise the closing sequence, and return the first one that parses.
-  //
-  // Implementation: O(n) for collection, then O(k) closes per attempt where
-  // k = nesting depth. Total work is bounded by the JSON depth × number of
-  // closing braces, which is fine for syllabus-sized payloads.
-
-  const closes: number[] = []; // positions one-past the `}`
-  let inString = false;
-  let escaped = false;
-  for (let i = 0; i < text.length; i += 1) {
-    const ch = text[i]!;
-    if (inString) {
-      if (escaped) escaped = false;
-      else if (ch === "\\") escaped = true;
-      else if (ch === '"') inString = false;
-      continue;
-    }
-    if (ch === '"') inString = true;
-    else if (ch === "}") closes.push(i + 1);
-  }
-
-  for (let idx = closes.length - 1; idx >= 0; idx -= 1) {
-    const cut = closes[idx]!;
-    const head = text.slice(0, cut);
-    const tail = computeClosingBrackets(head);
-    if (tail === null) continue;
-    const candidate = head + tail;
-    try {
-      JSON.parse(candidate);
-      return candidate;
-    } catch {
-      // Try an earlier cut.
-    }
-  }
-  return null;
-}
-
-function computeClosingBrackets(head: string): string | null {
-  const stack: Array<"{" | "["> = [];
-  let inString = false;
-  let escaped = false;
-  for (let i = 0; i < head.length; i += 1) {
-    const ch = head[i]!;
-    if (inString) {
-      if (escaped) escaped = false;
-      else if (ch === "\\") escaped = true;
-      else if (ch === '"') inString = false;
-      continue;
-    }
-    if (ch === '"') inString = true;
-    else if (ch === "{" || ch === "[") stack.push(ch);
-    else if (ch === "}" || ch === "]") {
-      if (stack.length === 0) return null;
-      stack.pop();
-    }
-  }
-  if (inString) return null;
-  return stack
-    .reverse()
-    .map((c) => (c === "{" ? "}" : "]"))
-    .join("");
-}
 
 // ---------------------------------------------------------------------------
 // ID helpers
@@ -260,7 +142,7 @@ export async function runSyllabusExtraction(opts: {
   // ------------------------------------------------------------------
   // 5. Parse + validate.
   // ------------------------------------------------------------------
-  const extracted = parseLlmResponse(result.text);
+  const extracted = parseLlmJson(result.text, ExtractedSyllabusSchema);
 
   // ------------------------------------------------------------------
   // 6. Idempotent upsert of subject, units, concepts.
