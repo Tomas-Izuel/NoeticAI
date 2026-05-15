@@ -1,0 +1,12 @@
+{
+  "_meta": {
+    "phase": 5,
+    "totalTuples": 30,
+    "passThreshold": 28,
+    "precisionGate": 0.95,
+    "language": "en",
+    "embedModel": "cohere.embed-multilingual-v3",
+    "TODO": "Hand-label 30 (conceptId, expectedCitationChunkIds) tuples against source-fixture.pdf. See plan §8.4 for the authoring approach. The kill-criterion gate (≥ 0.95 citation precision) cannot pass until this corpus is populated."
+  },
+  "tuples": []
+}

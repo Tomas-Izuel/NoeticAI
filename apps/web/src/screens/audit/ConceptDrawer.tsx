@@ -1,5 +1,6 @@
 import { useEffect, useRef, type FC } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import type { AuditConcept, AuditRunDetailFragment, ConceptVerdict } from "../../api/audit";
 import { getAuditRun } from "../../api/audit";
 import { CovGlyph, DepthBar, Icon } from "./primitives";
@@ -172,6 +173,25 @@ export const ConceptDrawer: FC<ConceptDrawerProps> = ({ concept, runId, onClose 
 
         {/* Body */}
         <div style={{ padding: "20px 24px 32px", flex: 1 }}>
+          {/* Open concept page — primary CTA for amber/red, secondary for green */}
+          <Link
+            to="/concept/$conceptId"
+            params={{ conceptId: concept.id }}
+            className={
+              concept.state === "green" ? "btn btn-secondary" : "btn btn-primary"
+            }
+            style={{
+              width: "100%",
+              justifyContent: "center",
+              marginBottom: 24,
+            }}
+          >
+            <Icon name="sparkle" size={13} />
+            {concept.state === "green"
+              ? "Open concept page"
+              : "Open concept · Generate completion"}
+          </Link>
+
           {/* State + depth */}
           <div style={{ marginBottom: 24 }}>
             <div className="cap" style={{ marginBottom: 10 }}>Coverage summary</div>

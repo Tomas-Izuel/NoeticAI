@@ -7,13 +7,29 @@ export interface ConverseMessage {
   content: Array<{ text: string }>;
 }
 
+/** Named cache layers, in stable-to-volatile order. */
+export type CacheLayer = "system" | "subject" | "concept";
+
+/**
+ * Phase 5 layered context.
+ * Drives cachePoint placement in the Bedrock Converse request:
+ *   subject → cached per syllabus version
+ *   concept → cached per concept edit
+ *   userTurn → never cached (contains retrieved chunks + task)
+ */
+export interface LayeredContext {
+  subject?: string;   // subject-cached prefix
+  concept?: string;   // concept-cached prefix
+  userTurn?: string;  // never cached — chunks + user task
+}
+
 export interface ConverseArgs {
   modelId: string;
   system?: string;
   messages: ConverseMessage[];
   // Layered cache markers — Phase 5 wires these into the Bedrock request body.
-  // Phase 0 accepts the param so call sites are forward-compatible.
-  cachePoints?: Array<"system" | "subject" | "concept">;
+  cachePoints?: CacheLayer[];
+  layeredContext?: LayeredContext;   // NEW Phase 5 — drives cachePoint placement
   maxTokens?: number;
   temperature?: number;
 }

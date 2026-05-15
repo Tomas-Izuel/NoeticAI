@@ -22,11 +22,18 @@ export function parseLlmJson<T>(raw: string, schema: z.ZodType<T>): T {
   // Strip ```json ... ``` or ``` ... ``` fences if present.
   text = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
 
+  // Track the most recent zod error so we can surface it if every parse path
+  // produces parseable-but-schema-invalid JSON. Without this, schema mismatches
+  // get swallowed and re-emerge as "could not be parsed" — misleading when
+  // tuning prompts.
+  let lastZodError: z.ZodError | null = null;
+
   // Try a direct parse first.
   try {
     const parsed: unknown = JSON.parse(text);
     return schema.parse(parsed);
-  } catch {
+  } catch (err) {
+    if (err instanceof z.ZodError) lastZodError = err;
     // Outermost {…} or […] block — works for both object- and array-rooted
     // LLM outputs (verdict response is an array; syllabus response is an object).
     const match = text.match(/[\{\[][\s\S]*[\}\]]/);
@@ -34,8 +41,8 @@ export function parseLlmJson<T>(raw: string, schema: z.ZodType<T>): T {
       try {
         const parsed: unknown = JSON.parse(match[0]);
         return schema.parse(parsed);
-      } catch {
-        /* fall through */
+      } catch (err2) {
+        if (err2 instanceof z.ZodError) lastZodError = err2;
       }
     }
     // Truncation salvage: depth-aware close. Walks the JSON tracking nesting
@@ -47,12 +54,25 @@ export function parseLlmJson<T>(raw: string, schema: z.ZodType<T>): T {
       try {
         const parsed: unknown = JSON.parse(salvaged);
         return schema.parse(parsed);
-      } catch {
-        /* fall through */
+      } catch (err3) {
+        if (err3 instanceof z.ZodError) lastZodError = err3;
       }
     }
+    if (lastZodError) {
+      const issues = lastZodError.issues
+        .slice(0, 5)
+        .map((i) => `${i.path.join(".") || "<root>"}: ${i.message}`)
+        .join("; ");
+      throw new Error(
+        `LLM response parsed as JSON but failed schema validation. ` +
+          `issues=[${issues}]. ` +
+          `length=${raw.length}. ` +
+          `head=${JSON.stringify(raw.slice(0, 200))}. ` +
+          `tail=${JSON.stringify(raw.slice(-200))}.`,
+      );
+    }
     throw new Error(
-      `LLM response could not be parsed. ` +
+      `LLM response could not be parsed as JSON. ` +
         `length=${raw.length}. ` +
         `head=${JSON.stringify(raw.slice(0, 200))}. ` +
         `tail=${JSON.stringify(raw.slice(-200))}.`,

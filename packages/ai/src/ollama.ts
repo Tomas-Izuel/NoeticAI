@@ -59,6 +59,18 @@ async function ollamaConverse(
     messages.push({ role: "system", content: args.system });
   }
 
+  // Phase 5: splice layeredContext into the first user message so prompt
+  // semantics match Bedrock (subject + concept + userTurn concatenated).
+  if (args.layeredContext) {
+    const parts: string[] = [];
+    if (args.layeredContext.subject) parts.push(args.layeredContext.subject);
+    if (args.layeredContext.concept) parts.push(args.layeredContext.concept);
+    if (args.layeredContext.userTurn) parts.push(args.layeredContext.userTurn);
+    if (parts.length > 0) {
+      messages.push({ role: "user", content: parts.join("\n\n") });
+    }
+  }
+
   for (const msg of args.messages) {
     const text = msg.content.map((c) => c.text).join("\n");
     messages.push({ role: msg.role, content: text });

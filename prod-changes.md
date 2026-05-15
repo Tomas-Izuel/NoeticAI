@@ -204,4 +204,104 @@ the dev loop fast on Ollama. Each must be closed before shipping.
 
 ---
 
-Last updated: 2026-05-07 (Phase 4 bibliography ingest backend).
+## Phase 5 dev shortcuts
+
+These items are intentional shortcuts taken during Phase 5 implementation to keep
+the dev loop fast on Ollama. Each must be closed before shipping.
+
+- [ ] **Sonnet routing on Ollama**: `llm.sonnet()` routes to the env-configured
+  Ollama model in dev. The Phase 5 kill-criterion gates (citation precision ≥ 0.95,
+  hallucination guard 100% null) **do not apply on gemma** — re-run all of
+  `apps/server/__eval__/citation-precision.test.ts`,
+  `apps/server/__eval__/hallucination-guard.test.ts`,
+  `apps/server/__eval__/cache-hit-sweep.test.ts`, and
+  `apps/server/__eval__/cost-per-completion.test.ts` after flipping
+  `NOETICAI_AI_BACKEND=bedrock`. The eval tests skip with a clear "BEDROCK REQUIRED"
+  message on Ollama. Ollama runs are smoke-tests of the plumbing only.
+- [ ] **Eval fixtures unauthored**. `apps/server/__eval__/citations.json` and
+  `apps/server/__eval__/hallucination-guard.json` ship with empty `tuples: []` /
+  `cases: []` arrays plus a TODO in `_meta`. Hand-label 30 citation tuples and 10
+  hallucination cases against `apps/server/__eval__/source-fixture.pdf` before the
+  kill-criterion gates can run. Tests fail loudly with `expect(0).toBeGreaterThan(0)`
+  while the corpus is empty so CI surfaces this.
+- [ ] **Hallucination-guard threshold (per-subject override)**:
+  `hallucinationGuardSimilarity` defaults to 0.85 on Bedrock
+  (`@noeticai/audit-core` `DEFAULT_THRESHOLDS`); the existing
+  `DEV_OLLAMA_THRESHOLDS` in `apps/server/src/audit/router.ts` lowers it to 0.7
+  for bge-m3. Phase 5 reads the same threshold from `audit_runs.thresholds_json`
+  (snapshotted at audit-run time). The Phase 5 kill-criterion gate must run on
+  Bedrock so it scores against 0.85, not 0.7. Delete the override once Phase 7e
+  ships per-subject threshold tuning.
+- [ ] **Cache-points still bypassed on Ollama**: `packages/ai/src/ollama.ts`
+  `ollamaConverse` inlines `args.layeredContext` (subject + concept + userTurn)
+  into a single user message but ignores `cachePoints`. The cache-hit metric
+  (`cacheReadInputTokens`/`cacheWriteInputTokens`) is always 0 on Ollama — the
+  cache-hit gate (≥ 70%) only counts on Bedrock. The cachePoint wiring on Bedrock
+  is implemented in `packages/ai/src/bedrock.ts` (closing `prod-changes.md` §4).
+- [ ] **`apps/web/src/lib/cost-rates.ts` is hardcoded** to Sonnet 4 us-east-1
+  rates as of the Phase 5 implementation date. When AWS publishes rate changes,
+  update this file. Promote to a server-config endpoint when the `cost_events`
+  table lands (Phase 7g).
+- [ ] **Completion worker concurrency=1**: `apps/server/src/queue/index.ts` caps
+  the completion worker at concurrency 1 (matches the existing audit pattern).
+  Spec (`plan.md` §9) calls for concurrency 6. Lift to 4 once `apps/worker` is
+  split per §7 above; lift to 6 once Sonnet quota raises land.
+- [ ] **Completion `attempts: 1` (no retry)**: `enqueueCompletion` enqueues with
+  `attempts: 1` rather than the spec's `attempts: 5, exponential backoff`.
+  Reasoning: Sonnet calls are expensive and we want guard-failure visibility, not
+  silent retry to success. Once we have a way to distinguish transient infra
+  errors (Bedrock 503, Cohere quota) from model misbehavior (telemetry from
+  Phase 7c), revisit this.
+- [ ] **`recordUsage` is still a `console.log` stub** (already tracked under §5
+  above). Phase 5 is the first feature that makes `recordUsage` *load-bearing*
+  for cost tracking — call sites are wired up in
+  `apps/server/src/completion/job.ts`. The dev-only cost badge on the completion
+  card reads tokens from the `completions` row directly (not from `recordUsage`);
+  when the `cost_events` table lands (Phase 7g), the badge should switch to
+  reading from there.
+- [ ] **Retrieval similarity floor is backend-dependent**. `apps/server/src/completion/retrieve.ts`
+  hardcodes `SIMILARITY_FLOOR = 0.4` when `NOETICAI_AI_BACKEND === "ollama"` and `0.55` on
+  Bedrock. Spec (`plan.md` §1.6) calls for 0.55 — the override exists because bge-m3 produces
+  cosines ~0.10–0.20 lower than Cohere v3, so the spec floor returns zero chunks even for
+  relevant sources during dev. Same root cause as `DEV_OLLAMA_THRESHOLDS` in
+  `apps/server/src/audit/router.ts`. Delete the override once Phase 7e ships per-subject
+  threshold tuning, OR fold it into the same per-subject threshold snapshot the audit reads.
+- [ ] **No re-similarity caching for the guard**: each guard call re-embeds
+  `(paragraph, cited_chunk)` pairs to compute similarity. On Bedrock with Cohere
+  v3 these embed calls cost real money (~$0.001 per completion in extra embed).
+  Acceptable for v1; cache the per-paragraph embedding by content hash if Phase
+  7g cost dashboards show this as significant.
+- [ ] **`thresholdsHash` derivation is `String(hallucinationGuardSimilarity)`**.
+  In `apps/server/src/completion/job.ts` the cache key thresholds-hash is the
+  raw threshold value as a string. This is stable for the same threshold value
+  and changes when the threshold changes — semantically correct but coarse. If
+  per-subject threshold tuning (Phase 7e) introduces multi-dimensional thresholds
+  affecting completion, switch to a deterministic hash of the full thresholds
+  object.
+- [ ] **`modelId: "n/a"` for the zero-chunks short-circuit**.
+  `apps/server/src/completion/job.ts` writes `model_id = "n/a"` on the
+  `null_no_grounding` row when no LLM call was made (no source chunks above
+  similarity floor). The `model_id` column is NOT NULL. v1.1: introduce a
+  separate `model_id` sentinel or make the column nullable for these rows.
+- [ ] **Bibliography PDF storage still local filesystem** (already tracked in §6).
+  The `GET /api/sources/:sid/chunks/:chunkId` endpoint reads chunk text from the
+  DB, not the PDF, so this is not a Phase 5 blocker — but the citation drawer
+  shows extracted text only. v1.1 enhancement: serve a signed-URL link to the
+  PDF page from the drawer.
+- [ ] **`concepts.neighborhood` may be empty or stale**: Phase 2 syllabus
+  extraction populates this field but quality varies. Phase 5 retrieval uses
+  neighborhood as a bonus query expansion; if neighborhood is null/empty,
+  retrieval falls back to `name + LO` only. **Flagged as v1.1**: re-derive
+  neighborhood after each audit run via cosine top-2 over `concept_embeddings`
+  (a deterministic alternative to LLM-derived neighborhood).
+- [ ] **Merge / Edit / Reject buttons are no-op stubs**.
+  `apps/web/src/screens/concept/CompletionHero.tsx` wires the three action
+  buttons but their handlers `alert()` the user that v1 is local-only per
+  `plan.md` D19 (connector write-back is out of v1). The completion lifecycle
+  status stays at `pending` indefinitely. v1.1: add `POST /api/completions/:cid/merge`,
+  `POST /api/completions/:cid/reject`, and a `PATCH /api/completions/:cid` for edits;
+  drop the `alert()` and swap in real mutations.
+
+---
+
+Last updated: 2026-05-08 (Phase 5 grounded completion).

@@ -10,6 +10,11 @@ import {
   processSourceIngestJob,
   type SourceIngestResult,
 } from "../bibliography/job";
+import {
+  processCompletionJob,
+  type CompletionJobInput,
+  type CompletionJobResult,
+} from "../completion/job";
 
 export interface IngestJobData {
   userId: string;
@@ -30,6 +35,8 @@ export interface SourceIngestJobData {
   userId: string;
 }
 
+export type { CompletionJobInput as CompletionJobData, CompletionJobResult };
+
 export const queues = {
   noop: new Queue("noop", { connection: redis }),
   ingest: new Queue<IngestJobData, IngestResult>("ingest", {
@@ -42,6 +49,9 @@ export const queues = {
     connection: redis,
   }),
   sourceIngest: new Queue<SourceIngestJobData, SourceIngestResult>("source-ingest", {
+    connection: redis,
+  }),
+  completion: new Queue<CompletionJobInput, CompletionJobResult>("completion", {
     connection: redis,
   }),
 };
@@ -136,6 +146,24 @@ export function startWorkers(): void {
     // eslint-disable-next-line no-console
     console.error(`[queue:source-ingest] job=${job?.id} failed:`, err.message);
   });
+
+  // Concurrency=1: Sonnet calls are heavy; serialise in-process to cap CPU
+  // and Bedrock quota usage. Spec says concurrency=6 — defer to Phase 7c when
+  // apps/worker splits and we have telemetry to justify lifting the cap.
+  // Per prod-changes.md §7 pattern (mirrors audit worker).
+  const completionWorker = new Worker<CompletionJobInput, CompletionJobResult>(
+    "completion",
+    async (job) => processCompletionJob(job.data),
+    { connection: redis, concurrency: 1 },
+  );
+  completionWorker.on("error", (err) => {
+    // eslint-disable-next-line no-console
+    console.error("[queue:completion] worker error:", err.message);
+  });
+  completionWorker.on("failed", (job, err) => {
+    // eslint-disable-next-line no-console
+    console.error(`[queue:completion] job=${job?.id} failed:`, err.message);
+  });
 }
 
 export async function enqueueIngest(
@@ -170,6 +198,27 @@ export async function enqueueSourceIngest(
   opts?: JobsOptions,
 ): Promise<string> {
   const job = await queues.sourceIngest.add("source:ingest", data, opts);
+  if (!job.id) throw new Error("BullMQ did not return a job id");
+  return job.id;
+}
+
+/**
+ * Enqueues a completion generation job.
+ *
+ * Deviation from plan.md §9: attempts=1 (not 5). Rationale: deterministic
+ * guard failures should surface immediately, not be retried into silence.
+ * Retry policy revisited in Phase 7c when telemetry allows distinguishing
+ * transient infra failures from model misbehaviour.
+ */
+export async function enqueueCompletion(
+  data: CompletionJobInput,
+  opts?: JobsOptions,
+): Promise<string> {
+  const job = await queues.completion.add("completion:generate", data, opts ?? {
+    attempts: 1,
+    removeOnComplete: { count: 200 },
+    removeOnFail: { count: 200 },
+  });
   if (!job.id) throw new Error("BullMQ did not return a job id");
   return job.id;
 }

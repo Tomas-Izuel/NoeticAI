@@ -1,0 +1,10 @@
+{
+  "_meta": {
+    "phase": 5,
+    "totalCases": 10,
+    "passThreshold": 10,
+    "description": "Each case forces the retrieval to return chunks NOT covering the concept. The hallucination guard MUST return null. Any non-null result is a kill-criterion failure.",
+    "TODO": "Hand-label 10 (conceptId, forcedChunkIds) cases against source-fixture.pdf. forcedChunkIds must be real chunk ids from the DB whose text is deliberately off-topic relative to the concept. See plan §8.4 for the authoring approach. The kill-criterion gate (100% null) cannot pass until this corpus is populated."
+  },
+  "cases": []
+}

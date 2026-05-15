@@ -15,6 +15,7 @@ import { syllabusRouter } from "./syllabus/router";
 import { auditRouter } from "./audit/router";
 import { bibliographyRouter } from "./bibliography/router";
 import { subjectsRouter } from "./subjects/router";
+import { completionRouter } from "./completion";
 
 const app = new Hono();
 
@@ -51,6 +52,7 @@ app.route("/", syllabusRouter);
 app.route("/", auditRouter);
 app.route("/", bibliographyRouter);
 app.route("/", subjectsRouter);
+app.route("/", completionRouter);
 
 await runMigrations(pool);
 startWorkers();
