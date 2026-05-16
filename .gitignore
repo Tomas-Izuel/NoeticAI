@@ -33,5 +33,7 @@ pnpm-debug.log*
 
 implementation.md
 plan.md
+deploy.md
 design
 skills-lock.json
+prod-changes.md
