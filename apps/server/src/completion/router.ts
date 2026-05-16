@@ -4,12 +4,147 @@ import { pool } from "../db";
 import { auth } from "../auth";
 import { enqueueCompletion } from "../queue";
 import { embed } from "../ai";
+import { cacheWrap } from "../redis/cache";
+import { retrieveChunksForConcept, SIMILARITY_FLOOR } from "./retrieve";
+import { loadConceptForUser } from "./concept-loader";
 
 export const completionRouter = new Hono();
 
 function sha256Hex(input: string): string {
   return createHash("sha256").update(input).digest("hex");
 }
+
+// ---------------------------------------------------------------------------
+// Eligibility types + shared computation helper
+// ---------------------------------------------------------------------------
+
+type EligibilityReason = "ok" | "no_sources_loaded" | "no_ready_sources" | "no_related_chunks";
+
+interface EligibilityResult {
+  eligible: boolean;
+  reason: EligibilityReason;
+  subjectSourcesTotal: number;
+  subjectSourcesReady: number;
+  candidateChunkCount: number;
+  topSimilarity: number | null;
+  similarityFloor: number;
+  embedModelId: string;
+  checkedAt: string;
+}
+
+async function computeEligibility(
+  conceptId: string,
+  subjectId: string,
+): Promise<EligibilityResult> {
+  const embedModelId = embed.defaultModelId;
+
+  // Count sources for the subject — gives us both the cache key components
+  // and the first two short-circuit checks.
+  const sourceCountRows = await pool.query<{
+    total: string;
+    ready: string;
+    max_updated_at: string;
+  }>(
+    `SELECT
+       COUNT(*) AS total,
+       COUNT(*) FILTER (WHERE status = 'ready') AS ready,
+       COALESCE(MAX(EXTRACT(EPOCH FROM updated_at))::bigint, 0)::text AS max_updated_at
+     FROM sources WHERE subject_id = $1`,
+    [subjectId],
+  );
+
+  const countRow = sourceCountRows.rows[0];
+  const total = parseInt(countRow?.total ?? "0", 10);
+  const ready = parseInt(countRow?.ready ?? "0", 10);
+  const maxUpdatedAt = countRow?.max_updated_at ?? "0";
+
+  const cacheKey = `completionEligibility:v1:${conceptId}:${ready}:${total}:${maxUpdatedAt}:${embedModelId}`;
+
+  return cacheWrap<EligibilityResult>(cacheKey, 300, async () => {
+    const checkedAt = new Date().toISOString();
+
+    if (total === 0) {
+      return {
+        eligible: false,
+        reason: "no_sources_loaded",
+        subjectSourcesTotal: 0,
+        subjectSourcesReady: 0,
+        candidateChunkCount: 0,
+        topSimilarity: null,
+        similarityFloor: SIMILARITY_FLOOR,
+        embedModelId,
+        checkedAt,
+      };
+    }
+
+    if (ready === 0) {
+      return {
+        eligible: false,
+        reason: "no_ready_sources",
+        subjectSourcesTotal: total,
+        subjectSourcesReady: 0,
+        candidateChunkCount: 0,
+        topSimilarity: null,
+        similarityFloor: SIMILARITY_FLOOR,
+        embedModelId,
+        checkedAt,
+      };
+    }
+
+    // Sources exist and are ready — run retrieval.
+    const { chunks, topSimilarityBelowFloor } = await retrieveChunksForConcept({
+      conceptId,
+      subjectId,
+      modelId: embedModelId,
+    });
+
+    if (chunks.length > 0) {
+      return {
+        eligible: true,
+        reason: "ok",
+        subjectSourcesTotal: total,
+        subjectSourcesReady: ready,
+        candidateChunkCount: chunks.length,
+        topSimilarity: chunks[0]!.retrievalSimilarity,
+        similarityFloor: SIMILARITY_FLOOR,
+        embedModelId,
+        checkedAt,
+      };
+    }
+
+    return {
+      eligible: false,
+      reason: "no_related_chunks",
+      subjectSourcesTotal: total,
+      subjectSourcesReady: ready,
+      candidateChunkCount: 0,
+      topSimilarity: topSimilarityBelowFloor,
+      similarityFloor: SIMILARITY_FLOOR,
+      embedModelId,
+      checkedAt,
+    };
+  });
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/concepts/:id/completion-eligibility
+// Returns eligibility status and diagnostic counts without triggering a job.
+// ---------------------------------------------------------------------------
+
+completionRouter.get("/api/concepts/:id/completion-eligibility", async (c) => {
+  const session = await auth.api.getSession({ headers: c.req.raw.headers });
+  if (!session) return c.json({ error: "unauthenticated" }, 401);
+  const userId = session.user.id;
+
+  const conceptId = c.req.param("id");
+
+  const concept = await loadConceptForUser(conceptId);
+  if (!concept) return c.json({ error: "not found" }, 404);
+  if (concept.user_id !== userId) return c.json({ error: "forbidden" }, 403);
+
+  const result = await computeEligibility(conceptId, concept.subject_id);
+  return c.json(result);
+});
 
 // ---------------------------------------------------------------------------
 // POST /api/concepts/:id/complete
@@ -24,24 +159,17 @@ completionRouter.post("/api/concepts/:id/complete", async (c) => {
   const conceptId = c.req.param("id");
 
   // Ownership chain: concept -> syllabus -> subject -> user.
-  const conceptRows = await pool.query<{
-    id: string;
-    syllabus_id: string;
-    subject_id: string;
-    user_id: string;
-  }>(
-    `SELECT c.id, c.syllabus_id, s.id AS subject_id, s.user_id
-     FROM concepts c
-     JOIN syllabuses sy ON sy.id = c.syllabus_id
-     JOIN subjects s ON s.id = sy.subject_id
-     WHERE c.id = $1`,
-    [conceptId],
-  );
-  const concept = conceptRows.rows[0];
+  const concept = await loadConceptForUser(conceptId);
   if (!concept) return c.json({ error: "not found" }, 404);
   if (concept.user_id !== userId) return c.json({ error: "forbidden" }, 403);
 
   const subjectId = concept.subject_id;
+
+  // Eligibility gate — reuses the same cache as the GET endpoint.
+  const eligibility = await computeEligibility(conceptId, subjectId);
+  if (!eligibility.eligible) {
+    return c.json({ error: "ineligible", reason: eligibility.reason }, 412);
+  }
 
   // Cache short-circuit: check if a recent valid completion exists.
   // "Cached" = a completion with status IN ('pending','merged_locally','edited')
@@ -127,15 +255,7 @@ completionRouter.get("/api/concepts/:id/completions/latest", async (c) => {
   const conceptId = c.req.param("id");
 
   // Ownership chain.
-  const conceptRows = await pool.query<{ id: string; user_id: string }>(
-    `SELECT c.id, s.user_id
-     FROM concepts c
-     JOIN syllabuses sy ON sy.id = c.syllabus_id
-     JOIN subjects s ON s.id = sy.subject_id
-     WHERE c.id = $1`,
-    [conceptId],
-  );
-  const concept = conceptRows.rows[0];
+  const concept = await loadConceptForUser(conceptId);
   if (!concept) return c.json({ error: "not found" }, 404);
   if (concept.user_id !== userId) return c.json({ error: "forbidden" }, 403);
 

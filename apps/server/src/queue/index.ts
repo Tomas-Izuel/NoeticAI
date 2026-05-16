@@ -19,6 +19,10 @@ import {
 export interface IngestJobData {
   userId: string;
   source: string;
+  // Each job processes exactly one subject. The value mirrors the connector's
+  // Subject.id (the stable external identifier). Required; callers must know
+  // which subject to ingest before enqueuing.
+  subjectExternalId: string;
 }
 
 export interface SyllabusJobData {
@@ -89,7 +93,10 @@ export function startWorkers(): void {
   });
   ingestWorker.on("failed", (job, err) => {
     // eslint-disable-next-line no-console
-    console.error(`[queue:ingest] job=${job?.id} failed:`, err.message);
+    console.error(
+      `[queue:ingest] job=${job?.id} data=${JSON.stringify(job?.data)} failed:`,
+      err,
+    );
   });
 
   // Concurrency=1: Opus calls are heavy and rare; serialising prevents
@@ -144,7 +151,10 @@ export function startWorkers(): void {
   });
   sourceIngestWorker.on("failed", (job, err) => {
     // eslint-disable-next-line no-console
-    console.error(`[queue:source-ingest] job=${job?.id} failed:`, err.message);
+    console.error(
+      `[queue:source-ingest] job=${job?.id} data=${JSON.stringify(job?.data)} failed:`,
+      err,
+    );
   });
 
   // Concurrency=1: Sonnet calls are heavy; serialise in-process to cap CPU

@@ -6,11 +6,15 @@ import {
   uploadSyllabus,
   getDraft,
   confirmCurriculum,
+  getActiveSyllabus,
   type CurriculumDraft,
   type ConfirmEdits,
   type DraftConcept,
   type DraftUnit,
 } from "../../api/syllabus";
+import { useConnections } from "../../api/connections";
+import { useActiveMapping, useAvailableSubjects } from "../../api/mappings";
+import { useActiveSubject } from "../../lib/useActiveSubject";
 
 export const Route = createFileRoute("/_auth/onboarding")({
   component: OnboardingPage,
@@ -18,7 +22,11 @@ export const Route = createFileRoute("/_auth/onboarding")({
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+// Phase 0 (connect) is prepended to the existing upload → extracting → review
+// → confirming flow. The existing step numbers shift by +1 (upload is now step
+// 2) and total steps become 4.
 type Phase =
+  | { kind: "connect" }
   | { kind: "upload" }
   | { kind: "extracting"; syllabusId: string; jobId: string }
   | { kind: "review"; syllabusId: string; draft: CurriculumDraft }
@@ -133,14 +141,15 @@ function EditableTitle({ value, onChange, level }: EditableTitleProps) {
 
 // ─── Step indicator ───────────────────────────────────────────────────────────
 
-function StepIndicator({ currentStep }: { currentStep: 1 | 2 | 3 }) {
-  const totalSteps = 3;
+// Total steps is now 4: connect (1) → upload (2) → extracting (3) → review (4)
+function StepIndicator({ currentStep }: { currentStep: 1 | 2 | 3 | 4 }) {
+  const totalSteps = 4;
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 40 }}>
       <div className="cap">Setup · Programa de estudios</div>
       <div style={{ flex: 1, height: 1, background: "var(--line)" }} />
       <div style={{ display: "flex", gap: 6 }}>
-        {[1, 2, 3].map((s) => (
+        {[1, 2, 3, 4].map((s) => (
           <div
             key={s}
             style={{
@@ -159,6 +168,273 @@ function StepIndicator({ currentStep }: { currentStep: 1 | 2 | 3 }) {
   );
 }
 
+// ─── Phase 0: Connect Notion ──────────────────────────────────────────────────
+
+// Shown when the user has no active connection. Three branches:
+//   1. No connection at all → hero "Connect Notion" CTA.
+//   2. Connection exists but no active mapping → "Continue setup" to the wizard.
+//   3. Connection + active mapping → advance directly to upload (caller handles).
+interface ConnectPhaseProps {
+  onProceed: () => void;
+}
+
+function ConnectPhase({ onProceed }: ConnectPhaseProps) {
+  const connections = useConnections();
+  const firstConnection = connections.data?.connections[0] ?? null;
+  const activeMapping = useActiveMapping(firstConnection?.id ?? null);
+  const mappingId = activeMapping.data?.mapping?.id ?? null;
+
+  // Fetch available subjects only when a mapping exists, to determine whether
+  // the user has already tracked at least one subject.
+  const availableSubjectsQuery = useAvailableSubjects(
+    firstConnection?.id ?? null,
+    mappingId,
+  );
+
+  const trackedCount =
+    availableSubjectsQuery.data?.subjects.filter((s) => s.tracked).length ?? 0;
+
+  const readyToAdvance =
+    !connections.isLoading &&
+    !activeMapping.isLoading &&
+    !!firstConnection &&
+    !!activeMapping.data?.mapping &&
+    !availableSubjectsQuery.isLoading &&
+    trackedCount > 0;
+
+  // Once all queries settle with a tracked subject, skip to upload
+  useEffect(() => {
+    if (readyToAdvance) {
+      onProceed();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [readyToAdvance]);
+
+  if (connections.isLoading) {
+    return (
+      <div className="t-sm t-muted" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div
+          style={{
+            width: 14,
+            height: 14,
+            border: "2px solid var(--fg-whisper)",
+            borderTopColor: "var(--accent-soft)",
+            borderRadius: "50%",
+            animation: "pulse 0.8s linear infinite",
+          }}
+          aria-hidden="true"
+        />
+        Checking connection…
+      </div>
+    );
+  }
+
+  // Branch: has connection + mapping, but no tracked subjects yet.
+  // Guard against error: if subjects query errored, fall through to the
+  // upload phase (safe default — user can upload a syllabus manually).
+  if (
+    firstConnection &&
+    activeMapping.data?.mapping &&
+    !availableSubjectsQuery.isLoading &&
+    !availableSubjectsQuery.isError &&
+    trackedCount === 0
+  ) {
+    return (
+      <div className="fade-in">
+        <h1 className="hh-1 serif" style={{ marginBottom: 14, maxWidth: 680 }}>
+          You&apos;re connected to Notion.{" "}
+          <span className="italic t-muted">Pick the subjects you want to track.</span>
+        </h1>
+        <p
+          className="t-read t-muted"
+          style={{ maxWidth: 600, fontSize: 15.5, marginBottom: 32 }}
+        >
+          Your workspace{" "}
+          <strong style={{ color: "var(--fg)" }}>{firstConnection.workspaceName}</strong>{" "}
+          is mapped, but no subjects are being tracked yet. Select the subjects
+          Episteme should audit.
+        </p>
+        <div style={{ display: "flex", gap: 8 }}>
+          <a
+            href={`/connect/done?connectionId=${firstConnection.id}&mappingId=${mappingId}&step=3`}
+            className="btn btn-primary"
+          >
+            Pick subjects
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 13 13"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <polyline points="2,6.5 11,6.5" />
+              <polyline points="7,2.5 11,6.5 7,10.5" />
+            </svg>
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  // Branch: has connection but no mapping → show "Continue setup" link
+  if (firstConnection && !activeMapping.data?.mapping && !activeMapping.isLoading) {
+    return (
+      <div className="fade-in">
+        <h1 className="hh-1 serif" style={{ marginBottom: 14, maxWidth: 680 }}>
+          Notion connected.{" "}
+          <span className="italic t-muted">
+            Finish mapping your workspace.
+          </span>
+        </h1>
+        <p
+          className="t-read t-muted"
+          style={{ maxWidth: 600, fontSize: 15.5, marginBottom: 32 }}
+        >
+          Your Notion workspace{" "}
+          <strong style={{ color: "var(--fg)" }}>
+            {firstConnection.workspaceName}
+          </strong>{" "}
+          is connected but hasn&apos;t been mapped to a subject yet. Continue
+          the setup to tell Episteme how your workspace is organised.
+        </p>
+        <div style={{ display: "flex", gap: 8 }}>
+          <a
+            href={`/connect/done?connectionId=${firstConnection.id}`}
+            className="btn btn-primary"
+          >
+            Continue setup
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 13 13"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <polyline points="2,6.5 11,6.5" />
+              <polyline points="7,2.5 11,6.5 7,10.5" />
+            </svg>
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  // Branch: no connection → hero CTA
+  return (
+    <div className="fade-in">
+      <h1 className="hh-1 serif" style={{ marginBottom: 14, maxWidth: 680 }}>
+        Connect your Notion.{" "}
+        <span className="italic t-muted">
+          Where your notes live.
+        </span>
+      </h1>
+      <p
+        className="t-read t-muted"
+        style={{ maxWidth: 600, fontSize: 15.5, marginBottom: 32 }}
+      >
+        Episteme reads your notes directly from Notion. Connect your workspace
+        to start: we&apos;ll detect your subjects, units, and pages — then
+        audit coverage against your syllabus.
+      </p>
+
+      <div
+        className="panel"
+        style={{
+          padding: "24px 28px",
+          maxWidth: 440,
+          marginBottom: 32,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 14,
+          }}
+        >
+          {[
+            "Read-only access — Episteme never writes to Notion.",
+            "Works with databases, pages, and hierarchies.",
+            "Re-syncs on demand; you control when notes refresh.",
+          ].map((line) => (
+            <div
+              key={line}
+              style={{ display: "flex", alignItems: "flex-start", gap: 10 }}
+            >
+              <div
+                style={{
+                  width: 16,
+                  height: 16,
+                  borderRadius: "50%",
+                  background: "var(--green-tint)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                  marginTop: 1,
+                }}
+                aria-hidden="true"
+              >
+                <svg
+                  width="8"
+                  height="8"
+                  viewBox="0 0 8 8"
+                  fill="none"
+                  stroke="var(--green-fg)"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <polyline points="1,4 3,6.5 7,1.5" />
+                </svg>
+              </div>
+              <span className="t-sm">{line}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <a
+          href="/connect/start?source=notion&redirect=/onboarding"
+          className="btn btn-primary btn-lg"
+        >
+          Connect Notion
+          <svg
+            width="13"
+            height="13"
+            viewBox="0 0 13 13"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <polyline points="2,6.5 11,6.5" />
+            <polyline points="7,2.5 11,6.5 7,10.5" />
+          </svg>
+        </a>
+        <button
+          className="btn btn-ghost"
+          onClick={onProceed}
+          title="Skip if you've already set up via the stub connector"
+        >
+          Skip for now
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Drop zone (State A) ──────────────────────────────────────────────────────
 
 interface UploadPhaseProps {
@@ -167,13 +443,32 @@ interface UploadPhaseProps {
 
 function UploadPhase({ onUploaded }: UploadPhaseProps) {
   const [dragOver, setDragOver] = useState(false);
-  const [subjectName, setSubjectName] = useState("");
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [showReplace, setShowReplace] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const { activeSubjectId, activeSubject, isLoading: subjectsLoading } = useActiveSubject();
+
+  // Loaded-syllabus check: if the active subject already has an active
+  // syllabus, render a summary instead of the upload form (the user can
+  // still click "Replace" to upload a new version).
+  const activeSyllabusQ = useQuery({
+    queryKey: ["syllabus", "active", activeSubjectId],
+    queryFn: () => getActiveSyllabus(activeSubjectId!),
+    enabled: !!activeSubjectId,
+    staleTime: 30 * 1000,
+  });
+  const loadedSyllabus = activeSyllabusQ.data?.syllabus ?? null;
+
+  // Fallback connection/mapping info for the "no subject" recovery link.
+  const connections = useConnections();
+  const firstConnection = connections.data?.connections[0] ?? null;
+  const activeMapping = useActiveMapping(firstConnection?.id ?? null);
+  const mappingId = activeMapping.data?.mapping?.id ?? null;
+
   const upload = useMutation({
-    mutationFn: ({ file, name }: { file: File; name?: string }) =>
-      uploadSyllabus(file, name || undefined),
+    mutationFn: ({ file, subjectId }: { file: File; subjectId: string }) =>
+      uploadSyllabus(file, subjectId),
     onSuccess: (data) => {
       setUploadError(null);
       onUploaded(data.syllabusId, data.jobId);
@@ -188,8 +483,12 @@ function UploadPhase({ onUploaded }: UploadPhaseProps) {
       setUploadError("Solo se aceptan archivos PDF.");
       return;
     }
+    if (!activeSubjectId) {
+      setUploadError("No hay materia activa seleccionada.");
+      return;
+    }
     setUploadError(null);
-    upload.mutate({ file, name: subjectName || undefined });
+    upload.mutate({ file, subjectId: activeSubjectId });
   };
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
@@ -205,6 +504,12 @@ function UploadPhase({ onUploaded }: UploadPhaseProps) {
     // Reset so the same file can be re-picked if needed
     e.target.value = "";
   };
+
+  // Build the recovery link for the "no subject" fallback block.
+  const noSubjectLink =
+    firstConnection && mappingId
+      ? `/connect/done?connectionId=${firstConnection.id}&mappingId=${mappingId}&step=3`
+      : "/connect/start?source=notion&redirect=/onboarding";
 
   return (
     <div className="fade-in">
@@ -223,24 +528,204 @@ function UploadPhase({ onUploaded }: UploadPhaseProps) {
         Después podrás revisar y ajustar todo antes de confirmar.
       </p>
 
-      {/* Optional subject name */}
-      <div style={{ marginBottom: 20, maxWidth: 440 }}>
-        <label
-          className="cap-sm"
-          style={{ display: "block", marginBottom: 6, color: "var(--fg-faint)" }}
-          htmlFor="subject-name-input"
+      {/* Active subject chip or "no subject" recovery block */}
+      {subjectsLoading ? (
+        <div
+          className="t-sm t-muted"
+          style={{ marginBottom: 20, display: "flex", alignItems: "center", gap: 8 }}
         >
-          Nombre de la materia (opcional)
-        </label>
-        <input
-          id="subject-name-input"
-          className="input"
-          placeholder="Ej. Epistemología II — 2025"
-          value={subjectName}
-          onChange={(e) => setSubjectName(e.target.value)}
-          disabled={upload.isPending}
-        />
-      </div>
+          <div
+            style={{
+              width: 12,
+              height: 12,
+              border: "2px solid var(--fg-whisper)",
+              borderTopColor: "var(--accent-soft)",
+              borderRadius: "50%",
+              animation: "pulse 0.8s linear infinite",
+            }}
+            aria-hidden="true"
+          />
+          Cargando materia…
+        </div>
+      ) : activeSubjectId && activeSubject ? (
+        <div
+          className="panel"
+          style={{
+            padding: "10px 14px",
+            marginBottom: 20,
+            maxWidth: 440,
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+          }}
+        >
+          <div
+            style={{
+              flexShrink: 0,
+              padding: "2px 8px",
+              background: "var(--accent-tint)",
+              border: "1px solid var(--accent-deep)",
+              borderRadius: 3,
+            }}
+          >
+            <span className="cap-sm" style={{ color: "var(--accent-soft)" }}>
+              Materia
+            </span>
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div
+              className="t-sm"
+              style={{ color: "var(--fg)", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+            >
+              {activeSubject.name}
+            </div>
+            {(activeSubject.course || activeSubject.term) && (
+              <div className="t-xs t-faint" style={{ marginTop: 1 }}>
+                {[activeSubject.course, activeSubject.term].filter(Boolean).join(" · ")}
+              </div>
+            )}
+          </div>
+          <div className="t-xs t-faint">
+            Cambiá la materia desde la barra superior
+          </div>
+        </div>
+      ) : (
+        <div
+          className="panel"
+          style={{
+            padding: "14px 16px",
+            marginBottom: 20,
+            maxWidth: 440,
+            background: "var(--amber-tint)",
+            border: "1px solid var(--amber)",
+            borderRadius: 4,
+          }}
+          role="alert"
+        >
+          <p className="t-sm" style={{ color: "var(--amber-fg)", margin: "0 0 10px" }}>
+            Primero tenés que hacer seguimiento de una materia.
+          </p>
+          <a href={noSubjectLink} className="btn btn-ghost btn-sm">
+            Seleccionar materia
+            <svg width="11" height="11" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <polyline points="2,6.5 11,6.5"/>
+              <polyline points="7,2.5 11,6.5 7,10.5"/>
+            </svg>
+          </a>
+        </div>
+      )}
+
+      {/* If a syllabus is already loaded for the active subject, show the
+          summary instead of the upload form. The user can click "Replace" to
+          drop a new version — that re-bumps the syllabus version on submit. */}
+      {loadedSyllabus && !showReplace && activeSubjectId ? (
+        <>
+          <div
+            className="panel"
+            style={{
+              padding: "20px 24px",
+              marginBottom: 18,
+              maxWidth: 640,
+              display: "flex",
+              alignItems: "flex-start",
+              gap: 16,
+            }}
+          >
+            <div
+              style={{
+                flexShrink: 0,
+                width: 36,
+                height: 36,
+                borderRadius: 6,
+                background: "var(--green-tint)",
+                color: "var(--green-fg)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+              aria-hidden="true"
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="3,8 7,12 13,4" />
+              </svg>
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div className="serif" style={{ fontSize: 16, fontWeight: 500, marginBottom: 2 }}>
+                Programa cargado
+              </div>
+              <div className="t-sm t-muted" style={{ marginBottom: 8 }}>
+                {loadedSyllabus.sourceFilename ?? "syllabus.pdf"}
+                {" · v"}
+                {loadedSyllabus.version}
+                {" · subido "}
+                {new Date(loadedSyllabus.createdAt).toLocaleDateString()}
+              </div>
+              <div className="t-xs t-faint" style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                <span>
+                  <strong style={{ color: "var(--fg)" }}>{loadedSyllabus.conceptCount}</strong>
+                  {" "}conceptos
+                </span>
+                <span>
+                  <strong style={{ color: "var(--fg)" }}>{loadedSyllabus.unitCount}</strong>
+                  {" "}unidades
+                </span>
+                <span>
+                  estado:{" "}
+                  <span className="mono">{loadedSyllabus.status}</span>
+                </span>
+              </div>
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              className="btn btn-primary"
+              onClick={() => {
+                if (activeSubjectId) {
+                  // Jump to /audit so the user can run an audit; we already
+                  // have the data they need.
+                  window.location.href = `/audit/${activeSubjectId}`;
+                }
+              }}
+            >
+              Ir a la auditoría
+            </button>
+            <button
+              className="btn btn-ghost"
+              onClick={() => {
+                setShowReplace(true);
+                setUploadError(null);
+              }}
+            >
+              Reemplazar programa
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+      {showReplace && loadedSyllabus && (
+        <div
+          className="panel"
+          style={{
+            padding: "12px 16px",
+            marginBottom: 16,
+            maxWidth: 640,
+            background: "var(--amber-tint)",
+            border: "1px solid var(--amber)",
+            borderRadius: 4,
+          }}
+        >
+          <p className="t-sm" style={{ color: "var(--amber-fg)", margin: 0 }}>
+            Reemplazar el programa creará una nueva versión (v{loadedSyllabus.version + 1}). La versión actual queda archivada.
+          </p>
+          <button
+            className="btn btn-ghost btn-sm"
+            style={{ marginTop: 8 }}
+            onClick={() => setShowReplace(false)}
+          >
+            Cancelar
+          </button>
+        </div>
+      )}
 
       {/* Drop zone */}
       <div
@@ -255,19 +740,20 @@ function UploadPhase({ onUploaded }: UploadPhaseProps) {
             ? "1.5px dashed var(--accent-soft)"
             : "1.5px dashed var(--fg-whisper)",
           background: dragOver ? "var(--elevated)" : "var(--base)",
-          cursor: upload.isPending ? "not-allowed" : "pointer",
+          cursor: (upload.isPending || !activeSubjectId) ? "not-allowed" : "pointer",
           transition: "background 120ms, border-color 120ms",
           marginBottom: 12,
           outline: "none",
+          opacity: !activeSubjectId ? 0.5 : 1,
         }}
-        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+        onDragOver={(e) => { e.preventDefault(); if (activeSubjectId) setDragOver(true); }}
         onDragLeave={() => setDragOver(false)}
         onDrop={handleDrop}
         onClick={() => {
-          if (!upload.isPending) fileInputRef.current?.click();
+          if (!upload.isPending && activeSubjectId) fileInputRef.current?.click();
         }}
         onKeyDown={(e) => {
-          if ((e.key === "Enter" || e.key === " ") && !upload.isPending) {
+          if ((e.key === "Enter" || e.key === " ") && !upload.isPending && activeSubjectId) {
             fileInputRef.current?.click();
           }
         }}
@@ -278,6 +764,7 @@ function UploadPhase({ onUploaded }: UploadPhaseProps) {
           accept="application/pdf"
           style={{ display: "none" }}
           onChange={handleChange}
+          disabled={!activeSubjectId}
         />
         <div
           style={{
@@ -342,12 +829,16 @@ function UploadPhase({ onUploaded }: UploadPhaseProps) {
       <div style={{ display: "flex", justifyContent: "flex-end" }}>
         <button
           className="btn btn-primary"
-          disabled={upload.isPending}
-          onClick={() => fileInputRef.current?.click()}
+          disabled={upload.isPending || !activeSubjectId}
+          onClick={() => {
+            if (activeSubjectId) fileInputRef.current?.click();
+          }}
         >
           {upload.isPending ? "Subiendo…" : "Subí tu programa"}
         </button>
       </div>
+        </>
+      )}
     </div>
   );
 }
@@ -886,7 +1377,14 @@ function ReviewPhase({ syllabusId, draft: initialDraft, onConfirmed }: ReviewPha
 
 function OnboardingPage() {
   const navigate = useNavigate();
-  const [phase, setPhase] = useState<Phase>({ kind: "upload" });
+
+  // Phase 0 ("connect") is now the initial state. ConnectPhase auto-advances
+  // to "upload" if the user already has a connection + active mapping.
+  const [phase, setPhase] = useState<Phase>({ kind: "connect" });
+
+  const handleConnected = () => {
+    setPhase({ kind: "upload" });
+  };
 
   const handleUploaded = (syllabusId: string, jobId: string) => {
     setPhase({ kind: "extracting", syllabusId, jobId });
@@ -905,15 +1403,28 @@ function OnboardingPage() {
   };
 
   const handleRetry = () => {
+    // On retry after extraction failure, go back to upload (not connect — the
+    // user is already connected; they just need to re-upload the PDF).
     setPhase({ kind: "upload" });
   };
 
-  const currentStep =
-    phase.kind === "upload" ? 1 : phase.kind === "extracting" ? 2 : 3;
+  // Map phase kind to step number for the indicator
+  const currentStep: 1 | 2 | 3 | 4 =
+    phase.kind === "connect"
+      ? 1
+      : phase.kind === "upload"
+        ? 2
+        : phase.kind === "extracting"
+          ? 3
+          : 4;
 
   return (
     <div style={{ maxWidth: 920, margin: "0 auto", padding: "56px 48px 80px" }}>
-      <StepIndicator currentStep={currentStep as 1 | 2 | 3} />
+      <StepIndicator currentStep={currentStep} />
+
+      {phase.kind === "connect" && (
+        <ConnectPhase onProceed={handleConnected} />
+      )}
 
       {phase.kind === "upload" && (
         <UploadPhase onUploaded={handleUploaded} />

@@ -13,11 +13,11 @@ export interface UploadResult {
 // Error handling mirrors apiFetch's pattern.
 export async function uploadSyllabus(
   file: File,
-  subjectName?: string,
+  subjectId: string,
 ): Promise<UploadResult> {
   const fd = new FormData();
   fd.append("file", file);
-  if (subjectName) fd.append("subjectName", subjectName);
+  fd.append("subjectId", subjectId);
 
   const BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? "";
   const res = await fetch(`${BASE}/api/syllabus`, {
@@ -114,4 +114,24 @@ export function confirmCurriculum(args: {
     method: "POST",
     body: JSON.stringify(args),
   });
+}
+
+// ─── Active syllabus for a subject ───────────────────────────────────────────
+
+export interface ActiveSyllabus {
+  id: string;
+  version: number;
+  status: string;
+  sourceFilename: string | null;
+  createdAt: string;
+  conceptCount: number;
+  unitCount: number;
+}
+
+export interface ActiveSyllabusResponse {
+  syllabus: ActiveSyllabus | null;
+}
+
+export function getActiveSyllabus(subjectId: string): Promise<ActiveSyllabusResponse> {
+  return apiFetch<ActiveSyllabusResponse>(`/api/subjects/${subjectId}/syllabus/active`);
 }

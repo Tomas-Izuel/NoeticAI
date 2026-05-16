@@ -15,6 +15,12 @@ export interface RetrievedChunk {
   retrievalSimilarity: number;
 }
 
+export interface RetrieveResult {
+  chunks: RetrievedChunk[];
+  // Best similarity among rows that did NOT pass the floor; null when no rows exist at all.
+  topSimilarityBelowFloor: number | null;
+}
+
 export interface RetrieveInput {
   conceptId: string;
   subjectId: string;
@@ -28,7 +34,7 @@ const DEFAULT_K = 10;
 // land at 0.40–0.55 and would be filtered out. Mirrors the
 // DEV_OLLAMA_THRESHOLDS pattern in apps/server/src/audit/router.ts. Remove on
 // Bedrock cutover (tracked in prod-changes.md Phase 5 dev shortcuts).
-const SIMILARITY_FLOOR =
+export const SIMILARITY_FLOOR =
   env.NOETICAI_AI_BACKEND === "ollama" ? 0.4 : 0.55;
 const MAX_CHUNKS_PER_SOURCE = 3;
 
@@ -42,13 +48,15 @@ const MAX_CHUNKS_PER_SOURCE = 3;
  *  4. pgvector cosine top-k from source_chunk_embeddings filtered by subjectId
  *     and modelId. Only sources with status='ready' are considered.
  *  5. Apply diversity cap: at most MAX_CHUNKS_PER_SOURCE per source.
- *  6. Return RetrievedChunk[].
+ *  6. Run a second query (no floor) to find topSimilarityBelowFloor.
+ *  7. Return RetrieveResult.
  *
- * Returns [] if there are no ready sources or nothing above the similarity floor.
+ * Returns chunks=[] if there are no ready sources or nothing above the similarity floor.
+ * topSimilarityBelowFloor is null when no chunks exist at all (not even below floor).
  */
 export async function retrieveChunksForConcept(
   input: RetrieveInput,
-): Promise<RetrievedChunk[]> {
+): Promise<RetrieveResult> {
   const k = input.k ?? DEFAULT_K;
 
   // 1. Load concept.
@@ -61,7 +69,7 @@ export async function retrieveChunksForConcept(
     [input.conceptId],
   );
   const concept = conceptRows.rows[0];
-  if (!concept) return [];
+  if (!concept) return { chunks: [], topSimilarityBelowFloor: null };
 
   // 2. Build neighbor names list (neighborhood is a jsonb array of {name: string} or similar).
   let neighborNames: string[] = [];
@@ -80,14 +88,14 @@ export async function retrieveChunksForConcept(
     .filter((s) => s.length > 0)
     .join("\n");
 
-  // 3. Embed.
+  // 3. Embed — one call; both queries below reuse the same vector.
   const embedResult = await embed.embed({ texts: [queryText], inputType: "search_query" });
   const queryVec = embedResult.vectors[0];
-  if (!queryVec) return [];
+  if (!queryVec) return { chunks: [], topSimilarityBelowFloor: null };
 
   const literal = `[${queryVec.join(",")}]`;
 
-  // 4. Top-k cosine query.
+  // 4. Top-k cosine query with floor filter.
   // We fetch k * MAX_CHUNKS_PER_SOURCE to have enough rows after diversity cap.
   const fetchLimit = k * MAX_CHUNKS_PER_SOURCE;
 
@@ -128,14 +136,14 @@ export async function retrieveChunksForConcept(
 
   // 5. Diversity cap: at most MAX_CHUNKS_PER_SOURCE per source.
   const countBySource = new Map<string, number>();
-  const result: RetrievedChunk[] = [];
+  const chunks: RetrievedChunk[] = [];
 
   for (const row of rows.rows) {
     const count = countBySource.get(row.source_id) ?? 0;
     if (count >= MAX_CHUNKS_PER_SOURCE) continue;
     countBySource.set(row.source_id, count + 1);
 
-    result.push({
+    chunks.push({
       chunkId: row.chunk_id,
       sourceId: row.source_id,
       sourceTitle: row.source_title,
@@ -150,8 +158,29 @@ export async function retrieveChunksForConcept(
         : row.similarity,
     });
 
-    if (result.length >= k) break;
+    if (chunks.length >= k) break;
   }
 
-  return result;
+  // 6. Find the best similarity strictly below the floor (for eligibility hint).
+  // Uses the same embed vector — no extra embed call.
+  const belowFloorRows = await pool.query<{ similarity: number }>(
+    `SELECT (1 - (e.vector <=> $1::vector)) AS similarity
+     FROM source_chunk_embeddings e
+     JOIN source_chunks sc ON sc.id = e.chunk_id
+     JOIN sources s ON s.id = sc.source_id
+     WHERE s.subject_id = $2
+       AND e.model_id = $3
+       AND s.status = 'ready'
+       AND (1 - (e.vector <=> $1::vector)) < $4
+     ORDER BY e.vector <=> $1::vector ASC
+     LIMIT 1`,
+    [literal, input.subjectId, input.modelId, SIMILARITY_FLOOR],
+  );
+
+  const belowRow = belowFloorRows.rows[0];
+  const topSimilarityBelowFloor = belowRow
+    ? (typeof belowRow.similarity === "string" ? parseFloat(belowRow.similarity) : belowRow.similarity)
+    : null;
+
+  return { chunks, topSimilarityBelowFloor };
 }

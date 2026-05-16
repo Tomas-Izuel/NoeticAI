@@ -33,18 +33,26 @@ function AuditScreenRoute() {
   const qc = useQueryClient();
   const navigate = useNavigate();
 
-  // ── 1. Latest audit data ──────────────────────────────────────────────────
+  // ── 1. Latest audit data — refetch every 3s while a run is in flight so
+  // the UI catches the transition from running → succeeded after a page
+  // reload (when we no longer have a BullMQ jobId to poll).
   const latestQ = useQuery({
     queryKey: ["audit", "latest", subjectId],
     queryFn: () => getAuditLatest(subjectId),
     staleTime: 30 * 1000,
+    refetchInterval: (q) => (q.state.data?.inFlightRun ? 3000 : false),
   });
 
-  // ── 2. Run-audit mutation → captures jobId ────────────────────────────────
+  // ── 2. Run-audit mutation → captures jobId (may be null when the server
+  // returns an already-in-flight run; treat that as a no-op).
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const runMutation = useMutation({
     mutationFn: () => startAuditRun(subjectId),
-    onSuccess: (res) => setActiveJobId(res.jobId),
+    onSuccess: (res) => {
+      if (res.jobId) setActiveJobId(res.jobId);
+      // If alreadyRunning, the latest-query refetchInterval picks it up.
+      void qc.invalidateQueries({ queryKey: ["audit", "latest", subjectId] });
+    },
   });
 
   // ── 3. Poll job until terminal ────────────────────────────────────────────
@@ -79,9 +87,17 @@ function AuditScreenRoute() {
   }, [latestQ.data, filter]);
 
   // ── Derived booleans ──────────────────────────────────────────────────────
+  // Running iff:
+  //   (a) the POST mutation is still in flight, OR
+  //   (b) we have a tracked jobId and its state is non-terminal (or unknown
+  //       because the first poll hasn't returned yet — prevents the
+  //       button-flicker race), OR
+  //   (c) the server's latest-payload reports an in-flight run (covers
+  //       page reload + the "alreadyRunning" idempotent response).
   const isJobRunning =
     runMutation.isPending ||
-    (!!jobQ.data && RUNNING_STATES.has(jobQ.data.state));
+    (activeJobId !== null && (!jobQ.data || RUNNING_STATES.has(jobQ.data.state))) ||
+    !!latestQ.data?.inFlightRun;
 
   const isJobFailed = jobQ.data?.state === "failed";
 
@@ -130,7 +146,10 @@ function AuditScreenRoute() {
         totals={data.totals}
         hasRun={hasRun}
         isRunning={isJobRunning}
-        onRunAudit={() => runMutation.mutate()}
+        onRunAudit={() => {
+          if (isJobRunning) return;
+          runMutation.mutate();
+        }}
       />
 
       {/* Running progress ribbon */}
@@ -192,7 +211,10 @@ function AuditScreenRoute() {
 
       {/* Empty state — no run yet AND no active job */}
       {!hasRun && !isJobRunning ? (
-        <EmptyAuditState isRunning={isJobRunning} onRunAudit={() => runMutation.mutate()} />
+        <EmptyAuditState isRunning={isJobRunning} onRunAudit={() => {
+          if (isJobRunning) return;
+          runMutation.mutate();
+        }} />
       ) : (
         <>
           {/* Filter row */}

@@ -16,6 +16,7 @@ import { schema } from "@noeticai/db";
 import { db, pool } from "../src/db";
 import { embed } from "../src/ai";
 import { runIngest } from "../src/ingest/pipeline";
+import { connectorRegistry } from "../src/connectors/registry";
 import { env } from "../src/env";
 
 interface Fixture {
@@ -50,13 +51,18 @@ test("Phase 1 retrieval recall ≥ 8/10 + invariants", async () => {
     throw new Error("no users found — sign up via the web UI first");
   }
 
+  // Resolve the stub's single subject id for this user.
+  const stubConnector = connectorRegistry.get("stub")!;
+  const stubSubjects = await stubConnector.listSubjects({ userId });
+  const subjectExternalId = stubSubjects[0]!.id;
+
   // First run — populates everything.
-  const first = await runIngest({ userId, source: "stub" });
+  const first = await runIngest({ userId, source: "stub", subjectExternalId });
   expect(first.notesIngested).toBeGreaterThan(0);
   expect(first.modelId).toBe(env.NOETICAI_BEDROCK_EMBED_ID);
 
   // Second run — fragments are unchanged, so no new embeddings should write.
-  const second = await runIngest({ userId, source: "stub" });
+  const second = await runIngest({ userId, source: "stub", subjectExternalId });
   expect(second.fragmentsAdded).toBe(0);
   expect(second.embeddingsAdded).toBe(0);
 

@@ -86,6 +86,8 @@ function BibliographyRoute() {
       uploadPdfSource({ subjectId: subjectId!, file }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["sources", "list", subjectId] });
+      // Broad invalidation: concept page re-checks eligibility on next focus
+      void qc.invalidateQueries({ queryKey: ["completion-eligibility"] });
     },
   });
 
@@ -95,6 +97,7 @@ function BibliographyRoute() {
       addUrlSource({ subjectId: subjectId!, url }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["sources", "list", subjectId] });
+      void qc.invalidateQueries({ queryKey: ["completion-eligibility"] });
     },
   });
 
@@ -103,6 +106,7 @@ function BibliographyRoute() {
     mutationFn: (sourceId: string) => reindexSource(sourceId),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["sources", "list", subjectId] });
+      void qc.invalidateQueries({ queryKey: ["completion-eligibility"] });
     },
   });
 

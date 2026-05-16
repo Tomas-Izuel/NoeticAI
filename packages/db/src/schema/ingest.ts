@@ -6,29 +6,44 @@ import {
   primaryKey,
   uniqueIndex,
   jsonb,
+  index,
 } from "drizzle-orm/pg-core";
 import { user } from "./auth";
+import { sourceConnections } from "./connections";
 import { vector } from "./types";
 
 // Phase 1 schema — supports the ingest pipeline (StubConnector → fragments
 // → embeddings → cosine retrieval). Concepts, sources, audit-runs are not
 // yet here; they land in Phase 2/3/4 per implementation.md.
 
-export const subjects = pgTable("subjects", {
-  id: text("id").primaryKey(),
-  userId: text("user_id")
-    .notNull()
-    .references(() => user.id, { onDelete: "cascade" }),
-  name: text("name").notNull(),
-  course: text("course"),
-  term: text("term"),
-  glyph: text("glyph"),
-  // Per-subject language. Drives embed-model selection (multilingual vs english).
-  // Defaults to Spanish per project context.
-  lang: text("lang").notNull().default("es"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+export const subjects = pgTable(
+  "subjects",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    // Tracks which source_connection created this subject via the multi-subject
+    // sync endpoint. NULL for subjects created via the stub or dev paths.
+    // ON DELETE SET NULL: connection revocation doesn't destroy the subject.
+    connectionId: text("connection_id").references(
+      () => sourceConnections.id,
+      { onDelete: "set null" },
+    ),
+    name: text("name").notNull(),
+    course: text("course"),
+    term: text("term"),
+    glyph: text("glyph"),
+    // Per-subject language. Drives embed-model selection (multilingual vs english).
+    // Defaults to Spanish per project context.
+    lang: text("lang").notNull().default("es"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => ({
+    connectionIdIdx: index("subjects_connection_id_idx").on(t.connectionId),
+  }),
+);
 
 export const units = pgTable("units", {
   id: text("id").primaryKey(),

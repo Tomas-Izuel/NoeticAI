@@ -75,6 +75,23 @@ auditRouter.post("/api/audit/runs", async (c) => {
   if (!subject) return c.json({ error: "not found" }, 404);
   if (subject.user_id !== userId) return c.json({ error: "forbidden" }, 403);
 
+  // Idempotency: if a run for this subject is already queued/running, return
+  // it instead of enqueueing a duplicate. The frontend can keep polling
+  // /audit/latest to learn when it completes.
+  const inFlight = await pool.query<{ id: string; status: string }>(
+    `SELECT id, status FROM audit_runs
+     WHERE subject_id = $1 AND status IN ('queued', 'running')
+     ORDER BY started_at DESC LIMIT 1`,
+    [subjectId],
+  );
+  const inFlightRun = inFlight.rows[0];
+  if (inFlightRun) {
+    return c.json(
+      { auditRunId: inFlightRun.id, jobId: null, status: inFlightRun.status, alreadyRunning: true },
+      200,
+    );
+  }
+
   // Look up the active syllabus.
   const syllabusRows = await pool.query<{ id: string }>(
     `SELECT id FROM syllabuses
@@ -358,6 +375,28 @@ auditRouter.get("/api/subjects/:id/audit/latest", async (c) => {
   );
   const latestRun = latestRunRows.rows[0] ?? null;
 
+  // Find any currently queued/running run so the UI can show progress after
+  // a page reload (the run is decoupled from the BullMQ jobId, which the
+  // browser doesn't persist).
+  const inFlightRows = await pool.query<{
+    id: string;
+    status: string;
+    started_at: Date;
+  }>(
+    `SELECT id, status, started_at FROM audit_runs
+     WHERE subject_id = $1 AND status IN ('queued', 'running')
+     ORDER BY started_at DESC LIMIT 1`,
+    [subjectId],
+  );
+  const inFlightRun = inFlightRows.rows[0] ?? null;
+  const inFlightShape = inFlightRun
+    ? {
+        id: inFlightRun.id,
+        status: inFlightRun.status as "queued" | "running",
+        startedAt: inFlightRun.started_at.toISOString(),
+      }
+    : null;
+
   // Find the active syllabus for this subject.
   const activeSyllabusRows = await pool.query<{ id: string }>(
     `SELECT id FROM syllabuses WHERE subject_id = $1 AND is_active = TRUE LIMIT 1`,
@@ -369,6 +408,7 @@ auditRouter.get("/api/subjects/:id/audit/latest", async (c) => {
     // No active syllabus — return empty state.
     return c.json({
       run: null,
+      inFlightRun: inFlightShape,
       subject: subjectShape,
       totals: null,
       units: [],
@@ -440,6 +480,7 @@ auditRouter.get("/api/subjects/:id/audit/latest", async (c) => {
 
     return c.json({
       run: null,
+      inFlightRun: inFlightShape,
       subject: subjectShape,
       totals: null,
       units,
@@ -580,6 +621,7 @@ auditRouter.get("/api/subjects/:id/audit/latest", async (c) => {
       startedAt: latestRun.started_at.toISOString(),
       finishedAt: latestRun.finished_at.toISOString(),
     },
+    inFlightRun: inFlightShape,
     subject: subjectShape,
     totals: {
       concepts: totalConcepts,

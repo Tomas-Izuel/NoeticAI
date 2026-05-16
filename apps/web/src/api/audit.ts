@@ -47,8 +47,15 @@ export interface AuditTotals {
   missing: number;
 }
 
+export interface InFlightRun {
+  id: string;
+  status: "queued" | "running";
+  startedAt: string;
+}
+
 export interface AuditLatest {
   run: AuditRunSummary | null;
+  inFlightRun: InFlightRun | null;
   subject: {
     id: string;
     name: string;
@@ -105,7 +112,9 @@ export interface AuditRunDetail {
 
 export interface RunAuditResponse {
   auditRunId: string;
-  jobId: string;
+  jobId: string | null;
+  status?: "queued" | "running";
+  alreadyRunning?: boolean;
 }
 
 export function startAuditRun(subjectId: string): Promise<RunAuditResponse> {

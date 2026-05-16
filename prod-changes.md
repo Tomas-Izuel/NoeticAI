@@ -305,3 +305,336 @@ the dev loop fast on Ollama. Each must be closed before shipping.
 ---
 
 Last updated: 2026-05-08 (Phase 5 grounded completion).
+
+---
+
+## Phase 6 dev shortcuts
+
+These items are intentional shortcuts taken during Phase 6 implementation.
+Each must be closed before shipping the Notion integration to real users.
+
+- [ ] **Notion OAuth credentials not set in dev**. `NOTION_CLIENT_ID`,
+  `NOTION_CLIENT_SECRET`, `NOTION_OAUTH_REDIRECT_URI` are commented out in
+  `apps/server/.env`. All three OAuth endpoints return 503 with a clear message
+  until you create a public Notion integration at https://www.notion.so/my-integrations
+  and fill in the values. Phase 0–5 features (stub connector, audit, completion)
+  work without them.
+  - Setup: Notion integration → Type = "Public" → set redirect URI to
+    `http://localhost:8080/api/oauth/notion/callback` → copy client_id + secret.
+
+- [ ] **No webhook subscriptions** (poll-on-demand only). Notion changes are
+  picked up only when the user explicitly triggers ingest (`POST /api/subjects/:id/ingest`
+  or `POST /dev/ingest`). Real-time sync via Notion webhooks is out of v1 per
+  plan §D4. Add webhook subscriptions when Notion's public webhook API is GA.
+
+- [ ] **`listTopLevelResources` returns first 100 results per kind** (no beyond-100
+  pagination implemented). Most workspaces fit within 100 databases + 100 pages;
+  users with very large workspaces may not see all resources in the wizard.
+  Full cursor-based pagination already exists in the `while (cursor)` loop — extend
+  to remove the implicit limit when needed.
+
+- [ ] **Connector concurrency = 1 in BullMQ** (unchanged from previous phases).
+  Notion API calls inside the ingest worker are serial. Spec calls for per-user
+  parallelism once the worker process splits. Tracked in §7 above.
+
+- [ ] **`suggestConfig` heuristic is positional** (first DB = subjects, second = units).
+  A proper heuristic should fetch database titles via `/databases/:id` and match
+  against `/subject/i` / `/unit/i`. Deferred because it requires an extra Notion API
+  call per DB during discovery. The Phase 7a wizard should render a "confirm mapping"
+  step where the user can override the suggestion.
+
+- [ ] **`resolveNoteContent` does not recurse into child blocks** of toggled or
+  nested blocks (e.g. toggles that contain bullets). Phase 6 extracts only top-level
+  block children of a page. Deeply nested blocks are silently skipped. Add recursive
+  child-page/block expansion in Phase 7a when the note content quality gate is defined.
+
+- [ ] **OAuth state cleanup job not implemented**. Expired `oauth_states` rows
+  accumulate until manually pruned. The `expires_at` index is in place for a
+  scheduled `DELETE FROM oauth_states WHERE expires_at < NOW()` job (add to a
+  cron worker in Phase 7+).
+
+- [ ] **`POST /api/connections/:id/mappings` deactivates ALL active mappings**
+  for a connection when a new mapping is created. This is correct for the single-
+  mapping-per-connection v1 model. Multi-mapping support (e.g. mapping multiple
+  subjects to different DBs in one workspace) is out of scope until Phase 7a.
+
+- [ ] **`resolveNoteContent` uses externalId as title fallback**. When the note
+  title can't be resolved from child_page block metadata (Notion doesn't always
+  include `child_page.title` in block children responses), the Notion page ID is
+  used as the title. A proper fix: fetch `GET /pages/:id` to read the page title.
+  Deferred because it doubles the API calls during note listing.
+
+---
+
+## Phase 6 frontend dev shortcuts
+
+These items are intentional shortcuts taken during Phase 6 frontend
+implementation. Each must be closed or reviewed before shipping.
+
+- [ ] **Connect routes are under `_auth/` layout (full shell)**. `/connect/start`
+  and `/connect/done` render inside the full app shell (Topbar + NavRail).
+  For a cleaner wizard UX, these should use a minimal shell (no nav rail).
+  Low priority — the wizard works; it's just slightly over-framed.
+
+- [ ] **`/connect/done` wizard uses component-local `WizardStep` state**.
+  If the user refreshes mid-wizard (e.g. on step 2 — discovery), the wizard
+  resets to step 1. The `connectionId` is in the URL so recovery is possible,
+  but the user has to re-pick the strategy. Consider persisting `strategyKey`
+  in a search param (`?strategyKey=...`) so a refresh lands back on step 2.
+
+- [ ] **`useTriggerIngest` in `connect/done` fires on mount with no retry
+  circuit-breaker**. The `useEffect` in `IngestStep` enqueues once; if the
+  network hiccup causes the POST to fail, the user sees an error and must
+  manually retry. The existing `useTriggerIngest` mutation has no built-in
+  retry policy. Add `attempts: 2` on the mutation when BullMQ ingest becomes
+  reliable enough to distinguish transient from permanent failures.
+
+- [ ] **`StrategyForm` does not reset when `schema` or `defaults` props change**.
+  State is seeded from props on first render only (via `useState(() => {...})`).
+  In Phase 7a when the strategy picker allows switching strategies, the form
+  will still show the previous strategy's values. Fix by passing a `key` prop
+  to `StrategyForm` that changes with the strategy key, forcing a remount.
+
+- [ ] **Discovery `ResourceList` shows only `externalId` (the raw Notion UUID)**.
+  `ResourceRef` from the server doesn't include a human-readable name. The
+  Phase 6 backend shortcut (`suggestConfig` is positional, not title-based)
+  means we can't easily resolve names. In Phase 7a, fetch database titles from
+  Notion and include them in `ResourceRef` (or as a separate `displayName` field
+  on the discovery response) so the wizard shows recognisable names.
+
+- [ ] **`/settings` shows `Reconnect` as an `<a>` tag** (not a router `<Link>`).
+  Works fine but bypasses TanStack Router's client-side navigation. Replace
+  with `<Link to="/connect/start" search={{ source: "notion" }}>` once the
+  reconnect flow is more mature and this cosmetic issue matters.
+
+- [ ] **`useConnections` staleTime is 30s** — slightly aggressive for a settings
+  page where the user expects up-to-date connection status. A freshly
+  disconnected workspace might still show as "active" for up to 30s. Lower
+  to 5s on the `/settings` route or call `queryClient.invalidateQueries`
+  on route mount.
+
+- [ ] **No `@noeticai/connector-core` package dep in `apps/web`**. The frontend
+  defines its own `FieldDescriptor` / `StrategyDescriptor` types locally
+  (in `api/strategies.ts`) rather than importing from `@noeticai/connector-core`.
+  The server-side `StrategyDescriptor.configSchema` field is typed `unknown`
+  in connector-core, so importing it wouldn't help without augmenting. If
+  connector-core exports a frontend-safe `SerializedConfigSchema` type in a
+  future phase, add `"@noeticai/connector-core": "workspace:*"` to
+  `apps/web/package.json` and remove the duplicate local type.
+
+---
+
+## Phase 7a — Additional Notion Strategies (dev shortcuts + known limitations)
+
+Four new strategies shipped alongside `notion.db-subjects-db-units`. Each needs
+real-data validation before being trusted for production workspaces.
+
+- [ ] **`notion.single-db-tagged` — select vs. status fallback is untested on real data**.
+  The strategy tries a `select` filter first and falls back to `status` on any API error.
+  A Notion workspace that uses a `status` column (not `select`) for the type property will
+  trigger the fallback on every query — extra round trips. In Phase 7a, introspect the
+  database schema via `GET /databases/:id` to determine the property type up front and
+  skip the fallback path. The config wizard should show a note if a `status` property is
+  detected.
+
+- [ ] **`notion.single-db-tagged` — self-referencing relation filter returns all matching
+  rows regardless of depth**. If a workspace has multi-level relations (Subject → Unit →
+  Sub-unit → Note) the relation filter on `Parent` will match at any depth, not just
+  direct children. This is benign for well-structured workspaces but can cause unexpected
+  results in deep trees. v1.1 mitigation: add a `depth` guard or require users to configure
+  separate `parentRelationProperty` values per level.
+
+- [ ] **`notion.page-hierarchy` `suggestConfig` picks the first page**, not the most-recently-
+  edited one. `topRes` from `listTopLevelResources` doesn't carry `last_edited_time`, so the
+  "most recently edited" heuristic in the spec is deferred. When the connector's
+  `listTopLevelResources` is extended to include timestamps or display names (tracked in
+  Phase 6 frontend shortcuts), update `suggestConfig` to sort by `last_edited_time` descending
+  and pick the top result.
+
+- [ ] **`notion.page-hierarchy` depth=2 synthetic unit id (`${subjectId}:notes`) may collide**
+  with a real Notion page id if a user names a page with a UUID that ends in `:notes`. This is
+  cosmetically possible but practically impossible (Notion UUIDs are server-assigned hex UUIDs
+  without colons). The `:notes` suffix is safe in practice; document this as a known assumption.
+
+- [ ] **`notion.db-subjects-pages-units` metadata property sniffing** (`courseProperty`,
+  `termProperty`, `glyphProperty`) is case-insensitive regex against the exact property names
+  `Course`, `Term`, `Glyph/Icon/Emoji`. Workspaces using other naming conventions (e.g.,
+  "Course Name", "Semester") will not be auto-detected. The user can still type the correct
+  property name in the wizard. A Bedrock-assisted heuristic could match fuzzier names — deferred
+  to v1.1 once model quality on property-name disambiguation is validated.
+
+- [ ] **`notion.three-dbs` suggestConfig title-matching is greedy and order-dependent**.
+  If a workspace has a DB titled "Course Notes" it will match `/notes?|pages?/i` (notesDbId)
+  before the subjects heuristic sees it. The matching loop processes DBs in topRes order and
+  stops once all three slots are filled. Ambiguous workspaces (e.g., "Notes on Subjects") may
+  get incorrect slot assignment. A wizard "confirm mapping" step (Phase 7a) is the recommended
+  fix — let the user swap the assignments before saving.
+
+- [ ] **`notion.three-dbs` `noteToUnitRelProperty` fallback**: if the Notes DB's relation
+  property points to subjects (not units), `resolveNotes` will return an empty list when called
+  with `unitId`. The wizard should surface this case with a clear error rather than silently
+  returning zero notes. Add schema introspection to validate that the configured relation
+  property target matches the configured `unitsDbId`.
+
+- [ ] **`resolveNoteContent` in all four new strategies does not recurse** into toggle/synced
+  blocks. Same limitation as `notion.db-subjects-db-units` (already tracked in Phase 6
+  shortcuts). Recursive child-block expansion is a shared v1.1 improvement.
+
+- [ ] **`suggestConfig` in `notion.db-subjects-pages-units` and `notion.three-dbs` fetches
+  DB metadata** via `GET /databases/:id` for each DB in `topRes`. This adds N API calls on
+  each discovery request (one per database). Acceptable for workspaces with < 20 databases;
+  may hit rate limits on large workspaces. Add a cache layer (Redis or in-memory per-request)
+  for DB metadata in Phase 7a.
+
+---
+
+## Phase 6 wizard UX upgrade — rich discovery + field pickers
+
+These items were addressed or deferred during the Phase 6b (wizard UX) work that
+replaced raw UUID/property-name text inputs with database/page/property pickers.
+
+### What shipped
+
+- **`SerializedField` discriminated union** (`kind: "database" | "page" | "property" | "select-option" | "enum" | "text"`)
+  replaces the old `{ type: "string" }` flat shape. The `type` field is gone; use `kind`.
+  Frontend must be updated to consume `kind` instead of `type`.
+
+- **`uiSchema` on each strategy** is now served as `descriptor.configSchema` from
+  `GET /api/connections/:id/strategies`. All five strategies have an explicit `uiSchema`
+  that maps field keys to their picker kind. `serialize-schema.ts` was deleted (it
+  is no longer used by anything).
+
+- **`GET /api/connections/:id/strategies/:key/discovery`** now returns
+  `{ databases: NotionDatabaseRef[], pages: NotionPageRef[], suggestedConfig }` instead
+  of `{ resources: ResourceRef[], suggestedConfig }`. The old `resources` key is gone.
+  Frontend discovery step must be updated to use `databases` / `pages`.
+
+- **`suggestConfig` signature changed**: now receives `{ databases, pages, notionClient }`
+  instead of `{ topRes, notionClient }`. Old callers passing `topRes` will not compile.
+
+- **`listTopLevelResourcesRich`** is a new export from `connector.ts` — separate from
+  `listTopLevelResources` (ingest pipeline, still returns `ResourceRef[]`).
+  Uses Redis cache key `notion:topResRich:${connectionId}` (5 min TTL).
+
+- **Two new endpoints** added to `connections/router.ts`:
+  - `GET /api/connections/:id/databases/:dbId/schema` → `{ properties: PropertyDescriptor[] }`
+  - `GET /api/connections/:id/databases/:dbId/properties/:propName/options`
+    → `{ options: { value, label, color? }[] }`
+  Both use Redis cache (5 min TTL: `notion:dbSchema:${dbId}`, `notion:propOptions:${dbId}:${propName}`).
+  Both require auth + ownership check (404 otherwise).
+
+- **`suggestConfig` upgraded** across all five strategies to use titles from the rich
+  discovery list (no extra API calls needed for `db-subjects-db-units` and `three-dbs`;
+  `db-subjects-pages-units` still fetches one DB for property sniffing when a title match
+  is found).
+
+### Deferred / known limitations
+
+- [ ] **Frontend wizard not yet updated** to consume `kind`-based `SerializedField` or
+  the new `databases`/`pages` discovery shape. The backend contract is final; the frontend
+  wizard still renders generic text inputs from the old shape. Phase 7a frontend work.
+
+- [ ] **`GET /strategies` `configSchema` field** on `StrategyDescriptor` is typed `unknown`
+  in `@noeticai/connector-core`. Now it carries a `SerializedConfigSchema` (the uiSchema).
+  When `connector-core` is next versioned, narrow the type to `SerializedConfigSchema`.
+
+- [ ] **`notion:topResRich` cache is separate from `notion:topRes`**. Both caches are
+  populated on independent calls (one for ingest, one for discovery). They are not
+  invalidated together. If a user connects a new workspace and immediately opens the
+  wizard, they may see a stale rich list for up to 5 min while the regular topRes cache
+  is also stale. Acceptable for v1; add a cache invalidation on `POST /api/oauth/notion/callback`
+  in Phase 7+.
+
+- [ ] **`db-subjects-pages-units` `suggestConfig` still makes one extra `/databases/:id`
+  fetch** when a title match is found (to sniff property names). This is a single call
+  per discovery, not N calls, which is acceptable. The `notion.three-dbs` strategy no
+  longer makes extra calls (title matching is now done from the rich discovery list directly).
+
+- [ ] **`select-option` fields require two prior picks** (database then property) before
+  the wizard can show options. The schema and options endpoints are lazy (called on
+  demand by the frontend). If the user picks a database and then immediately tries to
+  pick a select-option value without first picking the type property, the wizard must
+  enforce the dependency order. This is a frontend concern; the backend endpoints are
+  stateless.
+
+- [ ] **Property picker does not validate that the user-selected property name actually
+  exists in the database** at mapping save time. The Zod config schema only validates
+  that the value is a non-empty string. Full validation (e.g., "does `subjectRefPropOnUnit`
+  exist in `unitsDbId` and is it of type `relation`?") requires an extra Notion API call
+  at `POST /api/connections/:id/mappings` time. Deferred to Phase 7a.
+
+Last updated: 2026-05-15 (Phase 6 wizard UX upgrade).
+
+---
+
+## Multi-subject selection (Phase 6b)
+
+### What shipped
+
+- **`POST /api/connections/:id/mappings` contract changed**: no longer auto-creates a
+  subject row or returns `subjectId`. Returns `{ mappingId, availableSubjectsCount }`
+  instead. Frontend connect wizard must now advance to a subject-picker step.
+
+- **`GET /api/connections/:id/mappings/:mappingId/available-subjects`**: new endpoint
+  returning all subjects visible in the workspace, annotated with `tracked: true` if
+  the subject row already exists for this user. Cached 30s in Redis under
+  `notion:availableSubjects:<mappingId>`. Shared by the wizard and settings panel.
+
+- **`POST /api/connections/:id/mappings/:mappingId/subjects/sync`**: new endpoint that
+  reconciles the tracked subject set to the provided `externalIds` list.
+  Inserts new rows (hydrated from the 30s cache), hard-deletes rows that were created
+  via THIS connection but are absent from the list. If `kickIngest: true`, enqueues
+  one BullMQ job per newly added subject.
+
+- **`subjects.connection_id` column** added (TEXT NULL, FK to `source_connections` with
+  `ON DELETE SET NULL`). Migration: `0008_phase6_multi_subject.sql`. Existing rows keep
+  `NULL` (created via stub or dev paths).
+
+- **`runIngest` signature changed**: now requires `subjectExternalId: string`. Each job
+  processes ONE subject. `POST /api/subjects/:id/ingest` passes the subject id directly.
+  `POST /dev/ingest` auto-detects the stub's single subject when `source === "stub"` for
+  backward compatibility (stub-only convenience).
+
+### Deferred to v1.1
+
+- [ ] **Soft-delete instead of hard-delete** for un-tracked subjects. v1 hard-deletes the
+  subject row and all descendants (units, notes, fragments, embeddings, syllabuses, audit
+  runs, etc.) via FK cascades. A soft-delete (`archived_at`) + async purge job would give
+  a recovery window. Defer until first production incident.
+- [ ] **Batch-ingest progress aggregation**. When `subjects/sync` enqueues N jobs, there
+  is no aggregated progress endpoint. The frontend must poll each `jobId` individually
+  (via `GET /api/jobs/:id`). A batch-job wrapper (BullMQ Flow) that rolls up N per-subject
+  jobs under one parent job id would simplify the UI.
+- [ ] **Re-ingest on demand** for already-tracked subjects. `subjects/sync` only enqueues
+  ingest for newly added subjects. If the user wants to force a re-ingest of an already-
+  tracked subject, they must use `POST /api/subjects/:id/ingest`. A `forceReingest: true`
+  flag on `subjects/sync` could cover this.
+- [ ] **Webhook-driven invalidation of the 30s available-subjects cache**. When the
+  connector reports a workspace change, the cache should be purged so the user sees fresh
+  data immediately. Currently the cache is 30s TTL with no external invalidation.
+- [ ] **Per-subject ingest status on the settings panel**. The settings "Manage subjects"
+  panel (wired by the frontend agent) currently has no per-subject ingest state. Add a
+  `last_ingested_at` column to `subjects` and surface it in `GET /available-subjects`.
+
+---
+
+## Phase 6 syllabus fix
+
+Corrects the double-subject bug introduced when the syllabus upload path pre-dated
+the Notion connect wizard.  `POST /api/syllabus` now requires an existing `subjectId`
+and validates ownership (404/403) instead of auto-creating a synthetic subject.
+The extraction job (`syllabus/job.ts`) no longer touches the `subjects` table;
+the subject row created via the Notion wizard remains the single source of truth.
+
+- [ ] **Existing dev subjects created via the old syllabus path may need manual cleanup**.
+  A one-shot SQL to find them (no Notion connection, created via the synthetic hash path):
+  ```sql
+  DELETE FROM subjects WHERE connection_id IS NULL AND id NOT IN (
+    SELECT DISTINCT user_id FROM "user" -- adapt to your seed data
+  );
+  ```
+  Or simply wipe and re-onboard dev data (recommended — faster than surgical cleanup).
+- [ ] **No NOT NULL constraint added to `syllabuses.subject_id`** — the column was already
+  `NOT NULL` per the Phase 2 schema (`curriculum.ts`). No migration needed.
+
+Last updated: 2026-05-16 (Phase 6 syllabus fix).

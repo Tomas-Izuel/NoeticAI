@@ -15,9 +15,10 @@
  *   6. GET latest returns 404 for non-existent concept.
  *   7. GET /api/sources/:sid/chunks/:chunkId returns 404 for unknown source.
  *
- * Note: step 2 will reach null_no_grounding (no source chunks seeded) rather
- * than succeeded. The lifecycle test (lifecycle.test.ts) exercises all four
- * output paths using mocked LLM + embed clients.
+ * Note: step 2 will reach null_no_grounding or failed depending on whether
+ * the LLM backend is available. We seed a ready source + high-similarity
+ * embedding (with a patched embed client) so the eligibility gate passes.
+ * The lifecycle test exercises all output paths with fully mocked clients.
  */
 
 import { test, expect, beforeAll, afterAll } from "bun:test";
@@ -26,6 +27,8 @@ import { pool } from "../../db";
 import { startWorkers } from "../../queue";
 import { completionRouter } from "../router";
 import { auth } from "../../auth";
+import { createHash } from "node:crypto";
+import * as ai from "../../ai";
 
 // ---------------------------------------------------------------------------
 // Fixture IDs — unique per test run to avoid conflicts with live data.
@@ -38,6 +41,28 @@ const FIXTURE_AUDIT_RUN_ID = `smoke-ar-${RUN_ID}`;
 const FIXTURE_CONCEPT_ID = `smoke-cpt-${RUN_ID}`;
 const FIXTURE_GAP_ID = `smoke-gap-${RUN_ID}`;
 
+// Source + chunk + embedding — needed so the eligibility gate passes.
+const FIXTURE_SOURCE_ID = `smoke-src-${RUN_ID}`;
+const FIXTURE_CHUNK_ID = `smoke-chunk-${RUN_ID}`;
+const SMOKE_MODEL_ID = `smoke-embed-${RUN_ID}`;
+const DIM = 1024;
+
+function sha256Smoke(s: string): string {
+  return createHash("sha256").update(s).digest("hex");
+}
+
+// Fixed query vector: [1, 0, 0, ...]. Chunk vector at cosine 0.92 passes any floor.
+const SMOKE_QUERY_VEC: number[] = Array(DIM).fill(0) as number[];
+SMOKE_QUERY_VEC[0] = 1;
+
+const SMOKE_CHUNK_VEC: number[] = Array(DIM).fill(0) as number[];
+SMOKE_CHUNK_VEC[0] = 0.92;
+SMOKE_CHUNK_VEC[1] = Math.sqrt(Math.max(0, 1 - 0.92 * 0.92));
+
+type SmokEmbedFn = typeof ai.embed.embed;
+let smokeOriginalEmbed: SmokEmbedFn;
+let smokeOriginalModelId: string;
+
 // ---------------------------------------------------------------------------
 // Minimal app wired up for integration.
 // We mount only the completionRouter; auth is real (better-auth against DB).
@@ -48,6 +73,18 @@ let app: Hono;
 beforeAll(async () => {
   // Start BullMQ workers (idempotent — won't re-start if already running).
   startWorkers();
+
+  // Patch embed to return fixed vectors and use our fixture model ID.
+  // This ensures eligibility's retrieval finds the seeded chunk, and the
+  // worker also retrieves it (so it reaches the LLM step rather than zero-chunks).
+  smokeOriginalEmbed = ai.embed.embed.bind(ai.embed);
+  smokeOriginalModelId = ai.embed.defaultModelId;
+  (ai.embed as { embed: SmokEmbedFn; defaultModelId: string }).embed = async () => ({
+    modelId: SMOKE_MODEL_ID,
+    dim: DIM,
+    vectors: [SMOKE_QUERY_VEC],
+  });
+  (ai.embed as { defaultModelId: string }).defaultModelId = SMOKE_MODEL_ID;
 
   // Seed fixture data.
   // 1. User (better-auth "user" table)
@@ -110,6 +147,23 @@ beforeAll(async () => {
     [FIXTURE_GAP_ID, FIXTURE_CONCEPT_ID, FIXTURE_AUDIT_RUN_ID],
   );
 
+  // 7. Ready source + chunk + embedding — needed so the eligibility gate passes.
+  await pool.query(
+    `INSERT INTO sources (id, subject_id, kind, title, status, created_at, updated_at)
+     VALUES ($1, $2, 'pdf', 'Smoke Source', 'ready', NOW(), NOW()) ON CONFLICT (id) DO NOTHING`,
+    [FIXTURE_SOURCE_ID, FIXTURE_SUBJECT_ID],
+  );
+  await pool.query(
+    `INSERT INTO source_chunks (id, source_id, position, text, text_hash, char_count, created_at)
+     VALUES ($1, $2, 1, 'Smoke chunk for eligibility.', $3, 30, NOW()) ON CONFLICT (id) DO NOTHING`,
+    [FIXTURE_CHUNK_ID, FIXTURE_SOURCE_ID, sha256Smoke(FIXTURE_CHUNK_ID)],
+  );
+  await pool.query(
+    `INSERT INTO source_chunk_embeddings (chunk_id, model_id, dim, vector, created_at)
+     VALUES ($1, $2, $3, $4::vector, NOW()) ON CONFLICT (chunk_id, model_id) DO NOTHING`,
+    [FIXTURE_CHUNK_ID, SMOKE_MODEL_ID, DIM, `[${SMOKE_CHUNK_VEC.join(",")}]`],
+  );
+
   // Build the test Hono app.
   app = new Hono();
 
@@ -134,9 +188,16 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  // Restore embed.
+  (ai.embed as { embed: SmokEmbedFn }).embed = smokeOriginalEmbed;
+  (ai.embed as { defaultModelId: string }).defaultModelId = smokeOriginalModelId;
+
   // Clean up in reverse FK order.
   await pool.query(`DELETE FROM completions WHERE concept_id = $1`, [FIXTURE_CONCEPT_ID]);
   await pool.query(`DELETE FROM gaps WHERE id = $1`, [FIXTURE_GAP_ID]);
+  await pool.query(`DELETE FROM source_chunk_embeddings WHERE chunk_id = $1`, [FIXTURE_CHUNK_ID]);
+  await pool.query(`DELETE FROM source_chunks WHERE id = $1`, [FIXTURE_CHUNK_ID]);
+  await pool.query(`DELETE FROM sources WHERE id = $1`, [FIXTURE_SOURCE_ID]);
   await pool.query(`DELETE FROM concepts WHERE id = $1`, [FIXTURE_CONCEPT_ID]);
   await pool.query(`DELETE FROM audit_runs WHERE id = $1`, [FIXTURE_AUDIT_RUN_ID]);
   await pool.query(`DELETE FROM syllabuses WHERE id = $1`, [FIXTURE_SYLLABUS_ID]);
@@ -195,7 +256,8 @@ test("POST /api/concepts/:id/complete returns 201 with completionId and cached=f
 
 // ---------------------------------------------------------------------------
 // Test 2: Worker processes the job to a terminal state within 10s.
-// With no source chunks seeded, the job takes the null_no_grounding path.
+// With the patched embed and seeded chunk, the job reaches the LLM step.
+// The job resolves to null_no_grounding or failed depending on LLM availability.
 // ---------------------------------------------------------------------------
 test("worker processes the job to a terminal state", async () => {
   expect(firstCompletionId).toBeTruthy();

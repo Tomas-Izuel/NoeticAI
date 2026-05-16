@@ -16,6 +16,9 @@ import { auditRouter } from "./audit/router";
 import { bibliographyRouter } from "./bibliography/router";
 import { subjectsRouter } from "./subjects/router";
 import { completionRouter } from "./completion";
+import { oauthRouter } from "./oauth/router";
+import { connectionsRouter } from "./connections/router";
+import { ingestSubjectRouter } from "./subjects/ingest-router";
 
 const app = new Hono();
 
@@ -53,6 +56,9 @@ app.route("/", auditRouter);
 app.route("/", bibliographyRouter);
 app.route("/", subjectsRouter);
 app.route("/", completionRouter);
+app.route("/", oauthRouter);
+app.route("/", connectionsRouter);
+app.route("/", ingestSubjectRouter);
 
 await runMigrations(pool);
 startWorkers();

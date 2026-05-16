@@ -100,11 +100,12 @@ export async function runCompletionJob(
   const currentEmbedModelId = embed.defaultModelId;
 
   // 3. Retrieve source chunks.
-  const chunks = await retrieveChunksForConcept({
+  const retrieveResult = await retrieveChunksForConcept({
     conceptId,
     subjectId,
     modelId: currentEmbedModelId,
   });
+  const chunks = retrieveResult.chunks;
 
   // 4. Zero-chunks short-circuit.
   if (chunks.length === 0) {

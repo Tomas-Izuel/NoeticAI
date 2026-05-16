@@ -87,6 +87,22 @@ export function requestCompletion(conceptId: string): Promise<RequestCompletionR
   });
 }
 
+export interface CompletionEligibility {
+  eligible: boolean;
+  reason: "ok" | "no_sources_loaded" | "no_ready_sources" | "no_related_chunks";
+  subjectSourcesTotal: number;
+  subjectSourcesReady: number;
+  candidateChunkCount: number;
+  topSimilarity: number | null;
+  similarityFloor: number;
+  embedModelId: string;
+  checkedAt: string;
+}
+
+export function getCompletionEligibility(conceptId: string): Promise<CompletionEligibility> {
+  return apiFetch(`/api/concepts/${encodeURIComponent(conceptId)}/completion-eligibility`);
+}
+
 export function getChunk(sourceId: string, chunkId: string): Promise<ChunkDetailResponse> {
   return apiFetch(
     `/api/sources/${encodeURIComponent(sourceId)}/chunks/${encodeURIComponent(chunkId)}`,

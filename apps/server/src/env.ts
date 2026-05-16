@@ -43,6 +43,26 @@ const EnvSchema = z.object({
   BETTER_AUTH_URL: z.string().url().default("http://localhost:8080"),
   WEB_URL: z.string().url().default("http://localhost:3000"),
 
+  // --- Notion OAuth (optional — server boots without these) ---
+  // Obtain from https://www.notion.so/my-integrations → your public integration.
+  // The same client_id/secret powers TWO flows; register BOTH redirect URIs in
+  // the Notion integration settings:
+  //   • {BETTER_AUTH_URL}/api/auth/callback/notion   — sign-in (built-in)
+  //   • {BETTER_AUTH_URL}/api/oauth/notion/callback  — workspace connection
+  NOTION_CLIENT_ID: z.string().min(1).optional(),
+  NOTION_CLIENT_SECRET: z.string().min(1).optional(),
+  // Workspace-connection redirect URI (post-login data-source flow).
+  NOTION_OAUTH_REDIRECT_URI: z
+    .string()
+    .url()
+    .optional()
+    .default("http://localhost:8080/api/oauth/notion/callback"),
+
+  // --- Google OAuth (optional — server boots without these) ---
+  // Obtain from https://console.cloud.google.com → Credentials → OAuth 2.0.
+  GOOGLE_CLIENT_ID: z.string().min(1).optional(),
+  GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),
+
   SECRET_BOX_KEY: base64Bytes(32),
 
   // "1" → skip AI pings in /health (saves dev tokens/time).
@@ -73,3 +93,39 @@ export const env: Env = loadEnv();
 // Renamed from healthSkipBedrock — the env var name is intentionally preserved
 // to avoid downstream churn; the flag now skips whichever backend is active.
 export const healthSkipAi = env.NOETICAI_HEALTH_SKIP_BEDROCK === "1";
+
+// Returns true only when all three Notion OAuth env vars are present and
+// non-empty. Endpoints use this to return 503 when credentials are not set.
+export function notionOauthConfigured(): boolean {
+  return (
+    typeof env.NOTION_CLIENT_ID === "string" &&
+    env.NOTION_CLIENT_ID.length > 0 &&
+    typeof env.NOTION_CLIENT_SECRET === "string" &&
+    env.NOTION_CLIENT_SECRET.length > 0 &&
+    typeof env.NOTION_OAUTH_REDIRECT_URI === "string" &&
+    env.NOTION_OAUTH_REDIRECT_URI.length > 0
+  );
+}
+
+// Returns true when Notion can be used as a sign-in provider via better-auth's
+// genericOAuth plugin. NOTION_AUTH_REDIRECT_URI has a default so only
+// client_id/secret need to be checked.
+export function notionAuthConfigured(): boolean {
+  return (
+    typeof env.NOTION_CLIENT_ID === "string" &&
+    env.NOTION_CLIENT_ID.length > 0 &&
+    typeof env.NOTION_CLIENT_SECRET === "string" &&
+    env.NOTION_CLIENT_SECRET.length > 0
+  );
+}
+
+// Returns true when Google OAuth credentials are configured. When false the
+// google socialProvider is not registered with better-auth.
+export function googleAuthConfigured(): boolean {
+  return (
+    typeof env.GOOGLE_CLIENT_ID === "string" &&
+    env.GOOGLE_CLIENT_ID.length > 0 &&
+    typeof env.GOOGLE_CLIENT_SECRET === "string" &&
+    env.GOOGLE_CLIENT_SECRET.length > 0
+  );
+}

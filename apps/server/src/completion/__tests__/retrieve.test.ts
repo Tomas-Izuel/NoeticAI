@@ -228,7 +228,7 @@ function restoreEmbed() {
 test("returns chunks only from ready sources (not failed)", async () => {
   patchEmbed();
   try {
-    const chunks = await retrieveChunksForConcept({
+    const { chunks } = await retrieveChunksForConcept({
       conceptId: FIXTURE_CONCEPT_ID,
       subjectId: FIXTURE_SUBJECT_ID,
       modelId: MODEL_ID,
@@ -249,7 +249,7 @@ test("returns chunks only from ready sources (not failed)", async () => {
 test("all chunks from the ready source are above the 0.55 similarity floor", async () => {
   patchEmbed();
   try {
-    const chunks = await retrieveChunksForConcept({
+    const { chunks } = await retrieveChunksForConcept({
       conceptId: FIXTURE_CONCEPT_ID,
       subjectId: FIXTURE_SUBJECT_ID,
       modelId: MODEL_ID,
@@ -270,7 +270,7 @@ test("all chunks from the ready source are above the 0.55 similarity floor", asy
 test("at most 3 chunks per source (diversity cap)", async () => {
   patchEmbed();
   try {
-    const chunks = await retrieveChunksForConcept({
+    const { chunks } = await retrieveChunksForConcept({
       conceptId: FIXTURE_CONCEPT_ID,
       subjectId: FIXTURE_SUBJECT_ID,
       modelId: MODEL_ID,
@@ -298,7 +298,7 @@ test("at most 3 chunks per source (diversity cap)", async () => {
 test("results are ordered by descending similarity", async () => {
   patchEmbed();
   try {
-    const chunks = await retrieveChunksForConcept({
+    const { chunks } = await retrieveChunksForConcept({
       conceptId: FIXTURE_CONCEPT_ID,
       subjectId: FIXTURE_SUBJECT_ID,
       modelId: MODEL_ID,
@@ -323,7 +323,7 @@ test("results are ordered by descending similarity", async () => {
 test("exactly 3 chunks from the ready source (R4 cut by diversity cap)", async () => {
   patchEmbed();
   try {
-    const chunks = await retrieveChunksForConcept({
+    const { chunks } = await retrieveChunksForConcept({
       conceptId: FIXTURE_CONCEPT_ID,
       subjectId: FIXTURE_SUBJECT_ID,
       modelId: MODEL_ID,
@@ -349,7 +349,7 @@ test("exactly 3 chunks from the ready source (R4 cut by diversity cap)", async (
 test("returns empty array when conceptId does not exist", async () => {
   patchEmbed();
   try {
-    const chunks = await retrieveChunksForConcept({
+    const { chunks } = await retrieveChunksForConcept({
       conceptId: "nonexistent-concept-id",
       subjectId: FIXTURE_SUBJECT_ID,
       modelId: MODEL_ID,
@@ -367,7 +367,7 @@ test("returns empty array when conceptId does not exist", async () => {
 test("returned chunks have expected fields populated", async () => {
   patchEmbed();
   try {
-    const chunks = await retrieveChunksForConcept({
+    const { chunks } = await retrieveChunksForConcept({
       conceptId: FIXTURE_CONCEPT_ID,
       subjectId: FIXTURE_SUBJECT_ID,
       modelId: MODEL_ID,

@@ -54,9 +54,9 @@ function sha256Hex(input: string): string {
   return createHash("sha256").update(input).digest("hex");
 }
 
-/** Content-addressed subject id: sha256(userId + name).slice(0, 24). */
-function subjectId(userId: string, name: string): string {
-  return sha256Hex(userId + name).slice(0, 24);
+/** Deterministic unit id: sha256(syllabusId + ":u" + order).slice(0, 24). */
+function makeUnitId(syllabusId: string, order: number): string {
+  return sha256Hex(`${syllabusId}:u${order}`).slice(0, 24);
 }
 
 // ---------------------------------------------------------------------------
@@ -85,7 +85,7 @@ export async function runSyllabusExtraction(opts: {
   const { syllabusId, userId } = opts;
 
   // ------------------------------------------------------------------
-  // 1. Load the syllabuses row to get the stored PDF path.
+  // 1. Load the syllabuses row to get the stored PDF path and subject.
   // ------------------------------------------------------------------
   const syllabusRows = await db.execute<{
     source_path: string;
@@ -101,7 +101,11 @@ export async function runSyllabusExtraction(opts: {
   if (!syllabusRow) {
     throw new Error(`syllabusId=${syllabusId} not found`);
   }
-  const { source_path: sourcePath, source_filename: sourceFilename } = syllabusRow;
+  const {
+    source_path: sourcePath,
+    source_filename: sourceFilename,
+    subject_id: sId,
+  } = syllabusRow;
 
   // ------------------------------------------------------------------
   // 2. Read PDF bytes + extract text.
@@ -145,50 +149,58 @@ export async function runSyllabusExtraction(opts: {
   const extracted = parseLlmJson(result.text, ExtractedSyllabusSchema);
 
   // ------------------------------------------------------------------
-  // 6. Idempotent upsert of subject, units, concepts.
+  // 6. Upsert units under the existing subject; attach concepts.
+  //
+  // The subject row is the source of truth (created via the Notion
+  // connect wizard). We do NOT mutate subjects.name / course / term —
+  // the extracted metadata is informational only.
+  //
+  // Unit match strategy (case-insensitive name):
+  //   - If an existing unit for this subject matches the extracted name,
+  //     reuse its id so Notion-derived units are preserved.
+  //   - Otherwise create a new unit with a deterministic id derived from
+  //     (syllabusId, order) so reruns are idempotent.
   // ------------------------------------------------------------------
 
-  // Subject: content-addressed id on (userId, name). If the syllabus
-  // says no subject name, fall back to "Materia sin nombre".
-  const subjectName = extracted.subject.name.trim() || "Materia sin nombre";
-  const sId = subjectId(userId, subjectName);
-
-  await db.execute(sql`
-    INSERT INTO ${schema.subjects} (id, user_id, name, course, term, lang)
-    VALUES (
-      ${sId},
-      ${userId},
-      ${subjectName},
-      ${extracted.subject.course ?? null},
-      ${extracted.subject.term ?? null},
-      'es'
-    )
-    ON CONFLICT (id) DO UPDATE SET
-      name = EXCLUDED.name,
-      course = COALESCE(EXCLUDED.course, ${schema.subjects}.course),
-      term  = COALESCE(EXCLUDED.term,  ${schema.subjects}.term),
-      updated_at = NOW()
+  // Load existing units for this subject (for name-based reuse).
+  const existingUnitRows = await db.execute<{ id: string; name: string }>(sql`
+    SELECT id, name FROM ${schema.units} WHERE subject_id = ${sId}
   `);
+  const existingUnits = existingUnitRows.rows;
 
-  // Bind syllabus to the subject (in case it was created with a placeholder
-  // subject_id at upload time and we now know the real one).
-  await db.execute(sql`
-    UPDATE ${schema.syllabuses}
-    SET subject_id = ${sId}
-    WHERE id = ${syllabusId}
-  `);
+  // Map extracted order → resolved unit id.
+  const unitIdByOrder = new Map<number, string>();
 
-  // Units: id = `${sId}:u${order}`. Upsert by id.
   for (const u of extracted.units) {
-    const uId = `${sId}:u${u.order}`;
-    await db.execute(sql`
-      INSERT INTO ${schema.units} (id, subject_id, "order", name, weeks_label)
-      VALUES (${uId}, ${sId}, ${u.order}, ${u.name}, ${u.weeksLabel ?? null})
-      ON CONFLICT (id) DO UPDATE SET
-        name        = EXCLUDED.name,
-        "order"     = EXCLUDED."order",
-        weeks_label = EXCLUDED.weeks_label
-    `);
+    // Case-insensitive name match against existing units for this subject.
+    const match = existingUnits.find(
+      (eu) => eu.name.toLowerCase() === u.name.toLowerCase(),
+    );
+
+    let uId: string;
+    if (match) {
+      uId = match.id;
+      // Update order and weeks_label to reflect syllabus, but leave name
+      // as-is (Notion name is source of truth; user may have edited it).
+      await db.execute(sql`
+        UPDATE ${schema.units}
+        SET "order" = ${u.order}, weeks_label = ${u.weeksLabel ?? null}
+        WHERE id = ${uId}
+      `);
+    } else {
+      // New unit not previously tracked — create it deterministically.
+      uId = makeUnitId(syllabusId, u.order);
+      await db.execute(sql`
+        INSERT INTO ${schema.units} (id, subject_id, "order", name, weeks_label)
+        VALUES (${uId}, ${sId}, ${u.order}, ${u.name}, ${u.weeksLabel ?? null})
+        ON CONFLICT (id) DO UPDATE SET
+          name        = EXCLUDED.name,
+          "order"     = EXCLUDED."order",
+          weeks_label = EXCLUDED.weeks_label
+      `);
+    }
+
+    unitIdByOrder.set(u.order, uId);
   }
 
   // Concepts: id = `${syllabusId}:c${unitOrder}.${conceptOrder}`.
@@ -197,7 +209,7 @@ export async function runSyllabusExtraction(opts: {
 
   let conceptCount = 0;
   for (const u of extracted.units) {
-    const uId = `${sId}:u${u.order}`;
+    const uId = unitIdByOrder.get(u.order) ?? makeUnitId(syllabusId, u.order);
     for (const c of u.concepts) {
       const cId = `${syllabusId}:c${u.order}.${c.order}`;
       await db.execute(sql`
@@ -293,7 +305,7 @@ export async function runSyllabusExtraction(opts: {
 
   return {
     syllabusId,
-    subjectId: sId,
+    subjectId: sId,   // already set at upload time; returned for observability
     conceptCount,
     durationMs: Math.round(performance.now() - startedAt),
   };

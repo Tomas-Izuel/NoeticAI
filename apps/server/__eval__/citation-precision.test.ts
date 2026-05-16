@@ -147,11 +147,12 @@ test("citation precision ≥ 0.95 on 30-tuple golden corpus", async () => {
     }
 
     // Step 1: retrieve chunks (real retrieval).
-    const chunks = await retrieveChunksForConcept({
+    const retrieveResult = await retrieveChunksForConcept({
       conceptId: tuple.conceptId,
       subjectId: concept.subject_id,
       modelId: embed.defaultModelId,
     });
+    const chunks = retrieveResult.chunks;
 
     if (chunks.length === 0) {
       console.warn(

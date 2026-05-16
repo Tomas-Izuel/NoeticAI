@@ -26,6 +26,7 @@ export const SourceDrawer: FC<SourceDrawerProps> = ({ sourceId, subjectId, onClo
     mutationFn: () => deleteSource(sourceId),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["sources", "list", subjectId] });
+      void qc.invalidateQueries({ queryKey: ["completion-eligibility"] });
       onClose();
     },
   });
@@ -35,6 +36,7 @@ export const SourceDrawer: FC<SourceDrawerProps> = ({ sourceId, subjectId, onClo
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["sources", "list", subjectId] });
       void qc.invalidateQueries({ queryKey: ["sources", "detail", sourceId] });
+      void qc.invalidateQueries({ queryKey: ["completion-eligibility"] });
     },
   });
 

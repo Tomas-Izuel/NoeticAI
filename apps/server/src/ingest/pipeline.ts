@@ -19,9 +19,22 @@ export interface IngestResult {
   durationMs: number;
 }
 
+// ---------------------------------------------------------------------------
+// runIngest
+//
+// Ingests a single subject identified by subjectExternalId. The connector's
+// listSubjects() is called to locate the matching subject; a missing id is a
+// hard error (the caller should ensure the subject exists before enqueuing).
+//
+// For source="stub" the connector returns exactly one subject; subjectExternalId
+// must match that subject's id (or "auto" for backward-compat on the stub path
+// — see apps/server/src/dev/ingest.ts).
+// ---------------------------------------------------------------------------
+
 export async function runIngest(opts: {
   userId: string;
   source: string;
+  subjectExternalId: string;
 }): Promise<IngestResult> {
   const startedAt = performance.now();
   const connector = connectorRegistry.get(opts.source);
@@ -31,7 +44,13 @@ export async function runIngest(opts: {
   if (subjects.length === 0) {
     throw new Error(`connector ${opts.source} returned no subjects`);
   }
-  const subject = subjects[0]!;
+
+  const subject = subjects.find((s) => s.id === opts.subjectExternalId);
+  if (!subject) {
+    throw new Error(
+      `subject externalId=${opts.subjectExternalId} not found in connector ${opts.source}`,
+    );
+  }
 
   // Upsert subject (per-user). The connector's subject.id is treated as a
   // stable external identifier; we mirror it directly into our pk.

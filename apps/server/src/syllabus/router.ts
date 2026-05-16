@@ -16,11 +16,6 @@ function sha256Hex(input: string): string {
   return createHash("sha256").update(input).digest("hex");
 }
 
-/** Content-addressed subject id: sha256(userId + name).slice(0, 24). */
-function makeSubjectId(userId: string, name: string): string {
-  return sha256Hex(userId + name).slice(0, 24);
-}
-
 // ---------------------------------------------------------------------------
 // POST /api/syllabus — upload a syllabus PDF
 // ---------------------------------------------------------------------------
@@ -52,19 +47,22 @@ syllabusRouter.post("/api/syllabus", async (c) => {
     return c.json({ error: "file exceeds 10 MB limit" }, 400);
   }
 
-  const subjectNameField = formData.get("subjectName");
-  const subjectName =
-    typeof subjectNameField === "string" && subjectNameField.trim().length > 0
-      ? subjectNameField.trim()
-      : "Materia sin nombre";
+  // Require an existing subject id. Subjects are created via the Notion
+  // connect wizard (POST /api/connections/:id/mappings/:mappingId/subjects/sync)
+  // — the syllabus upload must target one of those subjects.
+  const subjectIdField = formData.get("subjectId");
+  if (typeof subjectIdField !== "string" || subjectIdField.trim().length === 0) {
+    return c.json({ error: "subjectId is required" }, 400);
+  }
+  const sId = subjectIdField.trim();
 
-  // Ensure the subject exists for this user.
-  const sId = makeSubjectId(userId, subjectName);
-  await db.execute(sql`
-    INSERT INTO ${schema.subjects} (id, user_id, name, lang)
-    VALUES (${sId}, ${userId}, ${subjectName}, 'es')
-    ON CONFLICT (id) DO NOTHING
+  // Validate that the subject exists and belongs to this user.
+  const subjectRows = await db.execute<{ id: string; user_id: string }>(sql`
+    SELECT id, user_id FROM ${schema.subjects} WHERE id = ${sId}
   `);
+  const subjectRow = subjectRows.rows[0];
+  if (!subjectRow) return c.json({ error: "subject not found" }, 404);
+  if (subjectRow.user_id !== userId) return c.json({ error: "forbidden" }, 403);
 
   // Determine the next version number.
   const versionRow = await db.execute<{ max_version: number | null }>(sql`
@@ -105,6 +103,60 @@ syllabusRouter.post("/api/syllabus", async (c) => {
   const jobId = await enqueueSyllabusExtraction({ syllabusId, userId });
 
   return c.json({ syllabusId, version, jobId }, 201);
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/subjects/:id/syllabus/active
+// Returns metadata about the active syllabus for the given subject, or null
+// if none is loaded. Drives the Syllabus page's "already loaded" state.
+// ---------------------------------------------------------------------------
+
+syllabusRouter.get("/api/subjects/:id/syllabus/active", async (c) => {
+  const session = await auth.api.getSession({ headers: c.req.raw.headers });
+  if (!session) return c.json({ error: "unauthenticated" }, 401);
+  const userId = session.user.id;
+
+  const subjectId = c.req.param("id");
+
+  // Ownership check.
+  const subjectRows = await db.execute<{ id: string; user_id: string }>(sql`
+    SELECT id, user_id FROM ${schema.subjects} WHERE id = ${subjectId}
+  `);
+  const subject = subjectRows.rows[0];
+  if (!subject) return c.json({ error: "not found" }, 404);
+  if (subject.user_id !== userId) return c.json({ error: "forbidden" }, 403);
+
+  // Pull the active syllabus + counts.
+  const rows = await db.execute<{
+    id: string;
+    version: number;
+    status: string;
+    source_filename: string | null;
+    created_at: Date;
+    concept_count: number;
+    unit_count: number;
+  }>(sql`
+    SELECT s.id, s.version, s.status, s.source_filename, s.created_at,
+           (SELECT COUNT(*)::int FROM ${schema.concepts} c WHERE c.syllabus_id = s.id) AS concept_count,
+           (SELECT COUNT(*)::int FROM ${schema.units} u WHERE u.subject_id = s.subject_id) AS unit_count
+    FROM ${schema.syllabuses} s
+    WHERE s.subject_id = ${subjectId} AND s.is_active = TRUE
+    LIMIT 1
+  `);
+  const row = rows.rows[0];
+  if (!row) return c.json({ syllabus: null });
+
+  return c.json({
+    syllabus: {
+      id: row.id,
+      version: row.version,
+      status: row.status,
+      sourceFilename: row.source_filename,
+      createdAt: row.created_at.toISOString(),
+      conceptCount: row.concept_count,
+      unitCount: row.unit_count,
+    },
+  });
 });
 
 // ---------------------------------------------------------------------------

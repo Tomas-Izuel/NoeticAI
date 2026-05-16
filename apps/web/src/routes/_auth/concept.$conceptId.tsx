@@ -2,7 +2,9 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { getConcept } from "../../api/concepts";
-import { getCompletionLatest, requestCompletion } from "../../api/completion";
+import { getCompletionLatest, requestCompletion, getCompletionEligibility } from "../../api/completion";
+import type { EligibilityState } from "../../screens/concept/GenerateCompletionButton";
+import { ApiError } from "../../api/client";
 import type { JobLookup } from "../../lib/useAsyncJob";
 import { useAsyncJob } from "../../lib/useAsyncJob";
 import { ConceptHeader } from "../../screens/concept/ConceptHeader";
@@ -57,16 +59,39 @@ function ConceptScreenRoute() {
     refetchInterval: false,
   });
 
-  // ── 3. Request-completion mutation → captures jobId ──────────────────────
+  // ── 3. Completion eligibility ─────────────────────────────────────────────
+  const eligibilityQ = useQuery({
+    queryKey: ["completion-eligibility", conceptId],
+    queryFn: () => getCompletionEligibility(conceptId),
+    enabled: !!conceptId,
+    staleTime: 60_000,
+    refetchOnWindowFocus: true,
+    refetchInterval: (q) =>
+      q.state.data?.reason === "no_ready_sources" ? 10_000 : false,
+  });
+
+  // ── 4. Request-completion mutation → captures jobId ──────────────────────
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
+  // Small transient banner for 412 responses
+  const [ineligibleBanner, setIneligibleBanner] = useState(false);
+
   const completionMutation = useMutation({
     mutationFn: () => requestCompletion(conceptId),
     onSuccess: (res) => {
+      void qc.invalidateQueries({ queryKey: ["completion-eligibility", conceptId] });
       if (res.cached) {
         // Cache hit — no job to poll, just refetch latest
         void qc.invalidateQueries({ queryKey: ["completion", "latest", conceptId] });
       } else if (res.jobId) {
         setActiveJobId(res.jobId);
+      }
+    },
+    onError: (err) => {
+      // 412 means sources changed — re-check eligibility and surface a hint
+      if (err instanceof ApiError && err.status === 412) {
+        void qc.invalidateQueries({ queryKey: ["completion-eligibility", conceptId] });
+        setIneligibleBanner(true);
+        setTimeout(() => setIneligibleBanner(false), 5000);
       }
     },
   });
@@ -154,6 +179,28 @@ function ConceptScreenRoute() {
     ? ((jobQ.data as JobLookup<CompletionJobResult>).failedReason ?? "Unknown error")
     : null;
 
+  // Map query state → EligibilityState union — must be before any early returns (rules of hooks)
+  const eligibilityState: EligibilityState = useMemo(() => {
+    if (eligibilityQ.isPending) return { kind: "loading" };
+    if (eligibilityQ.isError) return { kind: "error", onRetry: () => eligibilityQ.refetch() };
+    const d = eligibilityQ.data;
+    if (d.eligible) return { kind: "ok", candidateChunkCount: d.candidateChunkCount };
+    if (d.reason === "no_sources_loaded") return { kind: "no_sources_loaded" };
+    if (d.reason === "no_ready_sources") {
+      return {
+        kind: "no_ready_sources",
+        sourcesTotal: d.subjectSourcesTotal,
+        sourcesReady: d.subjectSourcesReady,
+      };
+    }
+    // no_related_chunks
+    return {
+      kind: "no_related_chunks",
+      topSimilarity: d.topSimilarity,
+      similarityFloor: d.similarityFloor,
+    };
+  }, [eligibilityQ.isPending, eligibilityQ.isError, eligibilityQ.data, eligibilityQ.refetch]);
+
   // ── Loading state ─────────────────────────────────────────────────────────
   if (conceptQ.isLoading) {
     return (
@@ -211,6 +258,8 @@ function ConceptScreenRoute() {
   }
 
   function handleGenerate() {
+    // Belt-and-braces guard: stale closure could fire even though button is disabled
+    if (eligibilityQ.data?.eligible !== true) return;
     setActiveJobId(null);
     completionMutation.mutate();
   }
@@ -303,11 +352,31 @@ function ConceptScreenRoute() {
 
         {/* Status-based hero section */}
 
+        {/* 412 / sources-changed transient banner */}
+        {ineligibleBanner && (
+          <div
+            role="alert"
+            style={{
+              padding: "10px 14px",
+              background: "var(--amber-tint)",
+              borderRadius: 6,
+              border: "1px solid var(--amber)",
+              marginBottom: 16,
+            }}
+          >
+            <span className="t-sm" style={{ color: "var(--amber-fg)" }}>
+              Sources changed — try again.
+            </span>
+          </div>
+        )}
+
         {/* No completion yet, or rejected → show generate button */}
         {(compStatus === null || compStatus === "rejected") && !isJobRunning && (
           <GenerateCompletionButton
             isRunning={isJobRunning}
             onGenerate={handleGenerate}
+            eligibility={eligibilityState}
+            subjectId={subjectId}
           />
         )}
 
@@ -352,7 +421,15 @@ function ConceptScreenRoute() {
               subjectId={subjectId}
               guardFailureReason={completion?.guardFailureReason}
             />
-            <GenerateCompletionButton isRunning={isJobRunning} onGenerate={handleGenerate} />
+            {/* Hide retry when still no related chunks — re-clicking yields the same null */}
+            {eligibilityState.kind !== "no_related_chunks" && (
+              <GenerateCompletionButton
+                isRunning={isJobRunning}
+                onGenerate={handleGenerate}
+                eligibility={eligibilityState}
+                subjectId={subjectId}
+              />
+            )}
           </>
         )}
 

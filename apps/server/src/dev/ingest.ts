@@ -4,6 +4,7 @@ import { schema } from "@noeticai/db";
 import { db } from "../db";
 import { auth } from "../auth";
 import { enqueueIngest } from "../queue";
+import { connectorRegistry } from "../connectors/registry";
 
 export const ingestRouter = new Hono();
 
@@ -14,7 +15,30 @@ ingestRouter.post("/dev/ingest", async (c) => {
   const body = await c.req.json().catch(() => ({}));
   const source = typeof body?.source === "string" ? body.source : "stub";
 
-  const jobId = await enqueueIngest({ userId: session.user.id, source });
+  // Stub-only convenience: auto-detect the single subject so `POST /dev/ingest`
+  // still works with an empty body. For production sources (notion etc.) the
+  // caller must provide subjectExternalId explicitly.
+  //
+  // PROD-CHANGE NOTE: this auto-detect is a stub-only convenience path. All
+  // production ingest entry points (POST /api/subjects/:id/ingest and
+  // POST /api/connections/:id/mappings/:mappingId/subjects/sync) always pass an
+  // explicit subjectExternalId.
+  let subjectExternalId: string | undefined =
+    typeof body?.subjectExternalId === "string" ? body.subjectExternalId : undefined;
+
+  if (!subjectExternalId && source === "stub") {
+    const connector = connectorRegistry.get("stub");
+    if (connector) {
+      const subjects = await connector.listSubjects({ userId: session.user.id });
+      subjectExternalId = subjects[0]?.id;
+    }
+  }
+
+  if (!subjectExternalId) {
+    return c.json({ error: "subjectExternalId required for non-stub sources" }, 400);
+  }
+
+  const jobId = await enqueueIngest({ userId: session.user.id, source, subjectExternalId });
   return c.json({ jobId, queue: "ingest" });
 });
 
