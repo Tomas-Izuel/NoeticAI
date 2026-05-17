@@ -29,8 +29,11 @@ const EnvSchema = z.object({
 
   // --- AWS / Bedrock settings (only active when NOETICAI_AI_BACKEND=bedrock) ---
   AWS_REGION: z.string().min(1),
-  AWS_ACCESS_KEY_ID: z.string().min(1),
-  AWS_SECRET_ACCESS_KEY: z.string().min(1),
+  // Optional: when absent, the AWS SDK falls through to the EC2 instance profile
+  // credential provider in production. Required for local dev (no instance role)
+  // and CI (uses dummy values).
+  AWS_ACCESS_KEY_ID: z.string().min(1).optional(),
+  AWS_SECRET_ACCESS_KEY: z.string().min(1).optional(),
 
   NOETICAI_BEDROCK_OPUS_ID: z.string().min(1),
   NOETICAI_BEDROCK_SONNET_ID: z.string().min(1),

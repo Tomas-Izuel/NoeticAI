@@ -25,6 +25,9 @@
     FROM deps AS prune
     # pnpm deploy resolves workspace:* by copying real package contents into node_modules
     RUN pnpm --filter @noeticai/server deploy --prod --legacy /out
+    # Defense in depth: even if .dockerignore misses, never ship a baked .env into prod.
+    # Bun auto-loads /app/.env and would pollute process.env with dev secrets.
+    RUN rm -f /out/.env /out/.env.* /out/.env.local
     
     # ---- 5) runtime: bun ----
     FROM oven/bun:1-slim AS runtime
@@ -33,6 +36,9 @@
     WORKDIR /app
     # Non-root user (oven/bun:1-slim ships `bun` user uid 1000)
     COPY --from=prune --chown=bun:bun /out /app
+    # RDS global CA bundle for TLS verification of Postgres connections
+    ADD --chown=bun:bun https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem /app/certs/rds-global-bundle.pem
+    ENV PGSSLROOTCERT=/app/certs/rds-global-bundle.pem
     USER bun
     EXPOSE 8080
     HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \

@@ -1,0 +1,43 @@
+# Never bake local env files into images — prod env comes from compose env_file.
+# Patterns need ** to match nested env files like apps/server/.env.
+.env
+.env.*
+**/.env
+**/.env.*
+!.env.example
+!**/.env.example
+
+# Git metadata
+.git
+.gitignore
+.gitattributes
+
+# Local-only dirs
+node_modules
+**/node_modules
+.pnpm-store
+.turbo
+
+# Build outputs (rebuilt inside the image)
+dist
+build
+**/dist
+**/build
+.next
+**/.next
+*.tsbuildinfo
+**/*.tsbuildinfo
+
+# IDE / OS junk
+.vscode
+.idea
+.DS_Store
+
+# Test / coverage artefacts
+coverage
+**/coverage
+*.log
+
+# CI / docs not needed at runtime
+.github
+docs
