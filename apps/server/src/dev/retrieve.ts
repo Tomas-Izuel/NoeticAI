@@ -14,7 +14,7 @@ retrieveRouter.get("/dev/retrieve", async (c) => {
   const k = Math.min(Number(c.req.query("k") ?? 5), 20);
 
   // Use whatever model the active embed client defaults to (bge-m3 for
-  // Ollama, cohere.embed-multilingual-v3 for Bedrock). The retrieved rows
+  // Ollama, amazon.titan-embed-text-v2:0 for Bedrock). The retrieved rows
   // are filtered by result.modelId so we only compare same-model vectors.
   const result = await embed.embed({
     texts: [q],

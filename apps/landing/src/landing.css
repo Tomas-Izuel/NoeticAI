@@ -1174,6 +1174,12 @@ body {
   max-width: 640px;
 }
 
+/* ───────── Flow animation section ───────── */
+.flow-player-wrap {
+  max-width: 1060px;
+  margin: 0 auto;
+}
+
 /* ───────── How it works — steps ───────── */
 .steps {
   display: grid;
@@ -2348,6 +2354,11 @@ footer.lp-foot {
 
 .cv-section--faq {
   contain-intrinsic-size: 1px 720px;
+}
+
+.cv-section--flow-animation {
+  content-visibility: visible;
+  contain-intrinsic-size: auto;
 }
 
 .cv-section--final-cta {

@@ -37,7 +37,7 @@ const EnvSchema = z.object({
   NOETICAI_BEDROCK_HAIKU_ID: z.string().min(1),
   // Notes/sources default to Spanish per project context. Override per-subject
   // when an English-only Subject lands (plan.md §4.2 multilingual note).
-  NOETICAI_BEDROCK_EMBED_ID: z.string().min(1).default("cohere.embed-multilingual-v3"),
+  NOETICAI_BEDROCK_EMBED_ID: z.string().min(1).default("amazon.titan-embed-text-v2:0"),
 
   BETTER_AUTH_SECRET: z.string().min(32),
   BETTER_AUTH_URL: z.string().url().default("http://localhost:8080"),

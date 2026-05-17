@@ -37,3 +37,8 @@ deploy.md
 design
 skills-lock.json
 prod-changes.md
+s3-lifecycle.json
+trust-policy.json
+policy.json
+ec2-user-data.sh
+AWSCLIV2.pkg

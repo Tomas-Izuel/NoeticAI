@@ -1,9 +1,15 @@
-// Sonnet 4 us-east-1 rates as of Phase 5 implementation.
+// Nova Lite us-east-1 rates as of 2026-05-17.
 // Promote to a server-config endpoint when the cost_events table lands (Phase 7g).
-export const SONNET_INPUT_USD_PER_1K = 0.003;
-export const SONNET_OUTPUT_USD_PER_1K = 0.015;
-export const SONNET_CACHE_READ_USD_PER_1K = 0.0003;
-export const SONNET_CACHE_WRITE_USD_PER_1K = 0.00375;
+// SONNET_* names are tier-role labels (sonnet = default completion tier);
+// the underlying family is now Amazon Nova, not Anthropic Claude.
+// Anthropic published distinct cache-read / cache-write rates; Nova bundles
+// caching into the prompt-caching feature without breaking out per-1K cache
+// rates the same way. We conservatively model cache-read/write at the fresh
+// input rate until AWS publishes Nova-specific cache pricing. See plan.md §4.5.
+export const SONNET_INPUT_USD_PER_1K = 0.00006;
+export const SONNET_OUTPUT_USD_PER_1K = 0.00024;
+export const SONNET_CACHE_READ_USD_PER_1K = 0.00006;   // model as input rate
+export const SONNET_CACHE_WRITE_USD_PER_1K = 0.00006;  // model as input rate
 
 export interface CompletionTokens {
   inputTokens: number;
