@@ -4,6 +4,7 @@ build
 .turbo
 .cache
 coverage
+apps/landing/out
 
 # user-uploaded files — never commit
 apps/server/uploads/
