@@ -6,22 +6,35 @@ import {
   useCurrentFrame,
 } from "remotion";
 import { tokens } from "./lib/tokens";
-import { IngestScene } from "./scenes/IngestScene";
-import { AuditScene } from "./scenes/AuditScene";
-import { CloseScene } from "./scenes/CloseScene";
+import { NotionNotesScene } from "./scenes/NotionNotesScene";
+import { ConnectScene } from "./scenes/ConnectScene";
+import { LoadingScene } from "./scenes/LoadingScene";
+import { GapsScene } from "./scenes/GapsScene";
+import { CompletionScene } from "./scenes/CompletionScene";
 
 // Scene timing (frames at 30fps)
-// 0–120: Ingest (4s)
-// 120–270: Audit (5s)
-// 270–390: Close (4s)
+// 0–120:   Notas    (4s)
+// 120–240: Conectar (4s)
+// 240–360: Cargar   (4s)
+// 360–510: Vacíos   (5s)
+// 510–630: Completar (4s)
 
-const INGEST_START = 0;
-const INGEST_DURATION = 120;
-const AUDIT_START = 120;
-const AUDIT_DURATION = 150;
-const CLOSE_START = 270;
-const CLOSE_DURATION = 120;
-const TOTAL_FRAMES = 390;
+const NOTAS_START = 0;
+const NOTAS_DURATION = 120;
+
+const CONECTAR_START = 120;
+const CONECTAR_DURATION = 120;
+
+const CARGAR_START = 240;
+const CARGAR_DURATION = 120;
+
+const VACIOS_START = 360;
+const VACIOS_DURATION = 150;
+
+const COMPLETAR_START = 510;
+const COMPLETAR_DURATION = 120;
+
+export const TOTAL_FRAMES = 630;
 
 const ease = Easing.bezier(0.16, 1, 0.3, 1);
 
@@ -29,7 +42,7 @@ function clamp(): { extrapolateLeft: "clamp"; extrapolateRight: "clamp" } {
   return { extrapolateLeft: "clamp", extrapolateRight: "clamp" };
 }
 
-type SceneKey = "ingest" | "audit" | "close";
+type SceneKey = "notas" | "conectar" | "cargar" | "vacios" | "completar";
 
 interface StepInfo {
   key: SceneKey;
@@ -40,15 +53,19 @@ interface StepInfo {
 }
 
 const STEPS: StepInfo[] = [
-  { key: "ingest", num: "01", label: "INGESTAR", start: INGEST_START, end: AUDIT_START },
-  { key: "audit", num: "02", label: "AUDITAR", start: AUDIT_START, end: CLOSE_START },
-  { key: "close", num: "03", label: "CERRAR", start: CLOSE_START, end: TOTAL_FRAMES },
+  { key: "notas",     num: "01", label: "NOTAS",     start: NOTAS_START,     end: CONECTAR_START },
+  { key: "conectar",  num: "02", label: "CONECTAR",  start: CONECTAR_START,  end: CARGAR_START },
+  { key: "cargar",    num: "03", label: "CARGAR",    start: CARGAR_START,    end: VACIOS_START },
+  { key: "vacios",    num: "04", label: "VACÍOS",    start: VACIOS_START,    end: COMPLETAR_START },
+  { key: "completar", num: "05", label: "COMPLETAR", start: COMPLETAR_START, end: TOTAL_FRAMES },
 ];
 
 function getCurrentStep(frame: number): SceneKey {
-  if (frame < AUDIT_START) return "ingest";
-  if (frame < CLOSE_START) return "audit";
-  return "close";
+  if (frame < CONECTAR_START)  return "notas";
+  if (frame < CARGAR_START)    return "conectar";
+  if (frame < VACIOS_START)    return "cargar";
+  if (frame < COMPLETAR_START) return "vacios";
+  return "completar";
 }
 
 /** Persistent top strip — crossfades step name between scenes */
@@ -102,8 +119,6 @@ function TopStrip() {
         {STEPS.map((step) => {
           const isActive = step.key === currentKey;
 
-          // Cross-fade: compute per-step opacity
-          // Active step: fades in at transition +8 frames, fades out at transition -8 frames
           const FADE = 10;
           const inOpacity = interpolate(
             frame,
@@ -237,7 +252,7 @@ function BottomBar() {
           textTransform: "uppercase",
         }}
       >
-        revisión sistemática · epistemología · FIL 411
+        apuntes · programa · vacíos · completitud · FIL 411
       </span>
     </div>
   );
@@ -277,24 +292,36 @@ export function FlowAnimation() {
           }}
         />
 
-        {/* Ingest scene */}
-        <Sequence from={INGEST_START} durationInFrames={AUDIT_START + 16}>
-          <IngestScene />
+        {/* Scene 1: Notion Notes */}
+        <Sequence from={NOTAS_START} durationInFrames={CONECTAR_START + 16}>
+          <NotionNotesScene />
         </Sequence>
 
-        {/* Audit scene */}
-        <Sequence from={AUDIT_START} durationInFrames={CLOSE_START + 16 - AUDIT_START}>
-          <AuditScene />
+        {/* Scene 2: Connect */}
+        <Sequence from={CONECTAR_START} durationInFrames={CARGAR_START + 16 - CONECTAR_START}>
+          <ConnectScene />
         </Sequence>
 
-        {/* Close scene */}
-        <Sequence from={CLOSE_START} durationInFrames={CLOSE_DURATION + 16}>
-          <CloseScene />
+        {/* Scene 3: Loading / Ingest */}
+        <Sequence from={CARGAR_START} durationInFrames={VACIOS_START + 16 - CARGAR_START}>
+          <LoadingScene />
         </Sequence>
 
-        {/* Transition flashes */}
-        <TransitionFlash from={AUDIT_START - 5} />
-        <TransitionFlash from={CLOSE_START - 5} />
+        {/* Scene 4: Gaps / Audit */}
+        <Sequence from={VACIOS_START} durationInFrames={COMPLETAR_START + 16 - VACIOS_START}>
+          <GapsScene />
+        </Sequence>
+
+        {/* Scene 5: Completion */}
+        <Sequence from={COMPLETAR_START} durationInFrames={COMPLETAR_DURATION + 16}>
+          <CompletionScene />
+        </Sequence>
+
+        {/* Transition flashes at scene boundaries */}
+        <TransitionFlash from={CONECTAR_START - 5} />
+        <TransitionFlash from={CARGAR_START - 5} />
+        <TransitionFlash from={VACIOS_START - 5} />
+        <TransitionFlash from={COMPLETAR_START - 5} />
       </div>
     </AbsoluteFill>
   );

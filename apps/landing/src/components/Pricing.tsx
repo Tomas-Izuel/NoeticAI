@@ -38,14 +38,14 @@ export function Pricing({ onWaitlist }: PricingProps) {
               <li>Columna de cobertura y constelación</li>
               <li>Hasta 100 conceptos auditados</li>
             </ul>
-            <a className="btn btn-outline" href="/start">Empezar →</a>
+            <button className="btn btn-outline" type="button" onClick={onWaitlist}>Empezar →</button>
           </div>
 
           {/* Scholar tier */}
           <div className="price highlight">
             <div className="price-name">Académico</div>
             <div className="price-num">
-              12&nbsp;US$<span className="per">/ mes</span>
+              5&nbsp;US$<span className="per">/ mes</span>
             </div>
             <div className="price-tag">
               Un semestre entero de revisiones, en paralelo.
@@ -57,7 +57,7 @@ export function Pricing({ onWaitlist }: PricingProps) {
               <li>Puntuación de confianza bibliográfica</li>
               <li>Exportación a PDF y BibTeX</li>
             </ul>
-            <a className="btn btn-primary" href="/start?plan=scholar">Elegir Académico →</a>
+            <button className="btn btn-primary" type="button" onClick={onWaitlist}>Elegir Académico →</button>
           </div>
 
           {/* Autonomous tier — coming soon */}

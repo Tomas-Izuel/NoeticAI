@@ -1,5 +1,5 @@
 import { Player } from "@remotion/player";
-import { FlowAnimation } from "../animations/FlowAnimation/FlowAnimation";
+import { FlowAnimation, TOTAL_FRAMES } from "../animations/FlowAnimation/FlowAnimation";
 
 export function FlowAnimationSection() {
   return (
@@ -11,19 +11,19 @@ export function FlowAnimationSection() {
         <header className="section-head">
           <div className="section-eyebrow">En movimiento</div>
           <h2 id="flow-animation-title">
-            Tres movimientos,{" "}
-            <span className="em">vistos a la vez</span>.
+            De tus apuntes a un{" "}
+            <span className="em">syllabus cubierto</span>.
           </h2>
           <p className="section-lede">
-            Ingestar, auditar, cerrar — un ciclo vivo que transforma tus
-            apuntes en un mapa de cobertura completo ante tus ojos.
+            Conectamos tus notas de Notion con el programa y la
+            bibliografía, detectamos los vacíos y los cerramos por ti.
           </p>
         </header>
 
         <div className="flow-player-wrap">
           <Player
             component={FlowAnimation}
-            durationInFrames={390}
+            durationInFrames={TOTAL_FRAMES}
             fps={30}
             compositionWidth={1280}
             compositionHeight={720}

@@ -7,61 +7,50 @@ function clamp(): { extrapolateLeft: "clamp"; extrapolateRight: "clamp" } {
   return { extrapolateLeft: "clamp", extrapolateRight: "clamp" };
 }
 
-// The paragraph to type out
+// The gap concept being closed via typewriter
 const PARAGRAPH_BEFORE_CITE =
-  "El coherentismo rechaza la asimetría fundacionalista entre creencias básicas y no básicas. La justificación surge del apoyo mutuo entre creencias en un sistema holístico ";
+  "El coherentismo (BonJour) rechaza la asimetría fundacionalista: la justificación surge del apoyo mutuo entre creencias en un sistema holístico ";
 const CITE = "[BonJour 1985, §5]";
 const PARAGRAPH_AFTER = ".";
-
 const FULL_TEXT = PARAGRAPH_BEFORE_CITE + CITE + PARAGRAPH_AFTER;
 
-// Spine proportions — carried over from Audit
-const SPINE_GREEN = 0.488;
-const SPINE_AMBER = 0.262;
-const SPINE_RED = 0.214;
+// Spine end state: 100% green (all gaps closed)
+const SPINE_GREEN_FINAL = 1.0;
 
-export function CloseScene() {
+export function CompletionScene() {
   const frame = useCurrentFrame();
 
-  // Stats trio fade-in
-  const statsOpacity = interpolate(frame, [0, 16], [0, 1], {
-    ...clamp(),
-    easing: ease,
-  });
-  const statsTranslateY = interpolate(frame, [0, 16], [12, 0], {
-    ...clamp(),
-    easing: ease,
-  });
+  // Stats fade-in
+  const statsOpacity = interpolate(frame, [0, 18], [0, 1], { ...clamp(), easing: ease });
+  const statsTranslateY = interpolate(frame, [0, 18], [14, 0], { ...clamp(), easing: ease });
 
   // Spine opacity
-  const spineOpacity = interpolate(frame, [10, 26], [0, 1], {
+  const spineOpacity = interpolate(frame, [12, 28], [0, 1], { ...clamp(), easing: ease });
+
+  // Spine fills to 100% green
+  const spineProgress = interpolate(frame, [14, 60], [0, SPINE_GREEN_FINAL], {
     ...clamp(),
     easing: ease,
   });
 
   // Drafting card entrance
-  const cardOpacity = interpolate(frame, [14, 30], [0, 1], {
-    ...clamp(),
-    easing: ease,
-  });
-  const cardTranslateX = interpolate(frame, [14, 30], [24, 0], {
-    ...clamp(),
-    easing: ease,
-  });
+  const cardOpacity = interpolate(frame, [16, 32], [0, 1], { ...clamp(), easing: ease });
+  const cardTranslateX = interpolate(frame, [16, 32], [24, 0], { ...clamp(), easing: ease });
 
-  // Typewriter: runs from frame 32 to frame 100 (68 frames for the text)
-  const TYPEWRITER_START = 32;
-  const TYPEWRITER_END = 100;
-  const charProgress = interpolate(frame, [TYPEWRITER_START, TYPEWRITER_END], [0, FULL_TEXT.length], {
-    ...clamp(),
-    easing: Easing.linear,
-  });
+  // Typewriter: runs from frame 34 to ~105
+  const TYPEWRITER_START = 34;
+  const TYPEWRITER_END = 104;
+  const charProgress = interpolate(
+    frame,
+    [TYPEWRITER_START, TYPEWRITER_END],
+    [0, FULL_TEXT.length],
+    { ...clamp(), easing: Easing.linear }
+  );
   const visibleChars = Math.round(charProgress);
 
   const beforeCiteLength = PARAGRAPH_BEFORE_CITE.length;
   const citeEnd = beforeCiteLength + CITE.length;
 
-  // What's visible of each segment
   const visibleBefore = FULL_TEXT.substring(0, Math.min(visibleChars, beforeCiteLength));
   const visibleCite =
     visibleChars > beforeCiteLength
@@ -70,7 +59,6 @@ export function CloseScene() {
   const visibleAfter =
     visibleChars > citeEnd ? PARAGRAPH_AFTER.substring(0, visibleChars - citeEnd) : "";
 
-  // Cite highlight comes in as text is typed
   const citeHighlightOpacity =
     visibleChars >= beforeCiteLength + CITE.length
       ? interpolate(frame, [TYPEWRITER_END - 8, TYPEWRITER_END], [0, 1], {
@@ -79,21 +67,13 @@ export function CloseScene() {
         })
       : 0;
 
-  // Confidence row appears after typing completes
-  const confidenceOpacity = interpolate(frame, [104, 116], [0, 1], {
-    ...clamp(),
-    easing: ease,
-  });
+  // Zero-gaps badge
+  const zeroGapsOpacity = interpolate(frame, [108, 120], [0, 1], { ...clamp(), easing: ease });
+  const zeroGapsScale = interpolate(frame, [108, 120], [0.9, 1], { ...clamp(), easing: ease });
 
-  // Stamp appears last
-  const stampOpacity = interpolate(frame, [110, 118], [0, 1], {
-    ...clamp(),
-    easing: ease,
-  });
-  const stampScale = interpolate(frame, [110, 118], [0.92, 1], {
-    ...clamp(),
-    easing: ease,
-  });
+  // Final stamp
+  const stampOpacity = interpolate(frame, [112, 120], [0, 1], { ...clamp(), easing: ease });
+  const stampScale = interpolate(frame, [112, 120], [0.92, 1], { ...clamp(), easing: ease });
 
   return (
     <AbsoluteFill
@@ -108,63 +88,55 @@ export function CloseScene() {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "1fr 1.4fr",
+          gridTemplateColumns: "1fr 1.5fr",
           gap: 40,
           width: "100%",
           maxWidth: 1060,
           alignItems: "start",
         }}
       >
-        {/* Left: stats + spine */}
+        {/* Left: stats + zero-gaps badge + spine */}
         <div>
           <div
             style={{
+              opacity: statsOpacity,
               fontFamily: tokens.mono,
               fontSize: 9,
               letterSpacing: "0.18em",
               color: tokens.fgFaint,
               textTransform: "uppercase",
               marginBottom: 16,
-              opacity: statsOpacity,
             }}
           >
             mapa de cobertura
           </div>
 
-          {/* Stats trio */}
+          {/* Stats grid */}
           <div
             style={{
               opacity: statsOpacity,
               transform: `translateY(${statsTranslateY}px)`,
               display: "grid",
-              gridTemplateColumns: "1fr 1fr 1fr",
+              gridTemplateColumns: "1fr 1fr",
               gap: 1,
               background: tokens.lineStrong,
               border: `1px solid ${tokens.lineStrong}`,
               borderRadius: 8,
               overflow: "hidden",
-              marginBottom: 16,
+              marginBottom: 14,
             }}
           >
             {[
-              { num: "41", label: "Cubierto", dotColor: tokens.green },
-              { num: "22", label: "Incompleto", dotColor: tokens.amber },
-              { num: "18", label: "Ausente", dotColor: tokens.red },
+              { num: "8", label: "Cubiertos", dotColor: tokens.green },
+              { num: "0", label: "Vacíos", dotColor: tokens.red },
             ].map(({ num, label, dotColor }) => (
-              <div
-                key={label}
-                style={{
-                  background: tokens.base,
-                  padding: "14px 12px",
-                  textAlign: "center",
-                }}
-              >
+              <div key={label} style={{ background: tokens.base, padding: "14px 12px", textAlign: "center" }}>
                 <div
                   style={{
                     fontFamily: tokens.sans,
-                    fontSize: 26,
+                    fontSize: 28,
                     fontWeight: 600,
-                    color: tokens.fg,
+                    color: num === "0" ? tokens.greenFg : tokens.fg,
                     lineHeight: 1,
                     letterSpacing: "-0.02em",
                     marginBottom: 6,
@@ -185,7 +157,7 @@ export function CloseScene() {
                       width: 6,
                       height: 6,
                       borderRadius: "50%",
-                      background: dotColor,
+                      background: num === "0" ? tokens.green : dotColor,
                       flexShrink: 0,
                     }}
                   />
@@ -204,52 +176,96 @@ export function CloseScene() {
             ))}
           </div>
 
-          {/* Coverage spine */}
+          {/* 100% coverage spine */}
           <div style={{ opacity: spineOpacity }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
+              <span
+                style={{
+                  fontFamily: tokens.mono,
+                  fontSize: 9,
+                  color: tokens.greenFg,
+                  letterSpacing: "0.08em",
+                }}
+              >
+                100% cubierto
+              </span>
+              <span
+                style={{
+                  fontFamily: tokens.mono,
+                  fontSize: 9,
+                  color: tokens.fgFaint,
+                  letterSpacing: "0.08em",
+                }}
+              >
+                0 vacíos
+              </span>
+            </div>
             <div
               style={{
-                height: 5,
+                height: 6,
                 background: tokens.recessed,
                 borderRadius: 3,
                 overflow: "hidden",
-                display: "flex",
-                marginBottom: 8,
               }}
             >
               <div
                 style={{
                   height: "100%",
-                  width: `${SPINE_GREEN * 100}%`,
-                  background: tokens.green,
-                  borderRadius: "3px 0 0 3px",
-                }}
-              />
-              <div
-                style={{
-                  height: "100%",
-                  width: `${SPINE_AMBER * 100}%`,
-                  background: tokens.amber,
-                }}
-              />
-              <div
-                style={{
-                  height: "100%",
-                  width: `${SPINE_RED * 100}%`,
-                  background: tokens.red,
-                  borderRadius: "0 3px 3px 0",
+                  width: `${spineProgress * 100}%`,
+                  background: `linear-gradient(to right, ${tokens.green}80, ${tokens.greenFg})`,
+                  borderRadius: 3,
                 }}
               />
             </div>
+          </div>
+
+          {/* Zero-gaps badge */}
+          <div
+            style={{
+              opacity: zeroGapsOpacity,
+              transform: `scale(${zeroGapsScale})`,
+              marginTop: 14,
+              background: tokens.greenTint,
+              border: `1px solid ${tokens.greenFg}40`,
+              borderRadius: 7,
+              padding: "8px 14px",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+            }}
+          >
             <div
               style={{
-                fontFamily: tokens.mono,
-                fontSize: 9,
-                color: tokens.fgFaint,
-                letterSpacing: "0.06em",
+                width: 14,
+                height: 14,
+                borderRadius: "50%",
+                border: `1.5px solid ${tokens.greenFg}`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
               }}
             >
-              48.8% cubierto · 26.2% parcial · 21.4% ausente
+              <div
+                style={{
+                  width: 5,
+                  height: 3,
+                  borderLeft: `1.5px solid ${tokens.greenFg}`,
+                  borderBottom: `1.5px solid ${tokens.greenFg}`,
+                  transform: "rotate(-45deg) translateY(-0.5px)",
+                }}
+              />
             </div>
+            <span
+              style={{
+                fontFamily: tokens.mono,
+                fontSize: 9.5,
+                color: tokens.greenFg,
+                letterSpacing: "0.08em",
+              }}
+            >
+              0 vacíos · syllabus cubierto
+            </span>
           </div>
         </div>
 
@@ -284,7 +300,7 @@ export function CloseScene() {
                   width: 6,
                   height: 6,
                   borderRadius: "50%",
-                  background: tokens.red,
+                  background: tokens.greenFg,
                   flexShrink: 0,
                 }}
               />
@@ -297,7 +313,7 @@ export function CloseScene() {
                   textTransform: "uppercase",
                 }}
               >
-                cerrando · Coherentismo
+                completando · Coherentismo
               </span>
             </div>
 
@@ -322,9 +338,8 @@ export function CloseScene() {
                         citeHighlightOpacity > 0
                           ? `rgba(168, 34, 27, ${0.22 * citeHighlightOpacity})`
                           : "transparent",
-                      color: citeHighlightOpacity > 0
-                        ? tokens.accentSoft
-                        : tokens.fgMuted,
+                      color:
+                        citeHighlightOpacity > 0 ? tokens.accentSoft : tokens.fgMuted,
                       borderRadius: 3,
                       padding: "0 2px",
                       fontFamily: tokens.mono,
@@ -354,7 +369,7 @@ export function CloseScene() {
               {/* Confidence row */}
               <div
                 style={{
-                  opacity: confidenceOpacity,
+                  opacity: interpolate(frame, [106, 118], [0, 1], { ...clamp(), easing: ease }),
                   marginTop: 14,
                   paddingTop: 12,
                   borderTop: `1px solid ${tokens.line}`,
@@ -375,14 +390,7 @@ export function CloseScene() {
                 >
                   confianza
                 </span>
-                {/* Bar */}
-                <div
-                  style={{
-                    flex: 1,
-                    display: "flex",
-                    gap: 2,
-                  }}
-                >
+                <div style={{ flex: 1, display: "flex", gap: 2 }}>
                   {Array.from({ length: 8 }).map((_, i) => (
                     <div
                       key={i}
@@ -390,8 +398,8 @@ export function CloseScene() {
                         flex: 1,
                         height: 6,
                         borderRadius: 1,
-                        background: i < 7 ? tokens.greenFg : tokens.fgWhisper,
-                        opacity: i < 7 ? 0.7 : 0.3,
+                        background: tokens.greenFg,
+                        opacity: 0.7,
                       }}
                     />
                   ))}
@@ -405,12 +413,12 @@ export function CloseScene() {
                     flexShrink: 0,
                   }}
                 >
-                  0,94
+                  1,00
                 </span>
               </div>
             </div>
 
-            {/* Stamp */}
+            {/* Final stamp */}
             <div
               style={{
                 opacity: stampOpacity,
@@ -420,7 +428,7 @@ export function CloseScene() {
                 display: "flex",
                 alignItems: "center",
                 gap: 8,
-                background: `rgba(77, 139, 106, 0.06)`,
+                background: `rgba(77, 139, 106, 0.08)`,
               }}
             >
               <div
@@ -438,9 +446,10 @@ export function CloseScene() {
                 <div
                   style={{
                     width: 5,
-                    height: 5,
-                    borderRadius: "50%",
-                    background: tokens.greenFg,
+                    height: 3,
+                    borderLeft: `1.5px solid ${tokens.greenFg}`,
+                    borderBottom: `1.5px solid ${tokens.greenFg}`,
+                    transform: "rotate(-45deg) translateY(-0.5px)",
                   }}
                 />
               </div>
@@ -452,7 +461,7 @@ export function CloseScene() {
                   letterSpacing: "0.08em",
                 }}
               >
-                borrador listo
+                borrador listo · syllabus cubierto
               </span>
             </div>
           </div>
