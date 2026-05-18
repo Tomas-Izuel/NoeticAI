@@ -4,6 +4,7 @@ build
 .turbo
 .cache
 coverage
+apps/landing/out
 
 # user-uploaded files — never commit
 apps/server/uploads/
@@ -33,5 +34,12 @@ pnpm-debug.log*
 
 implementation.md
 plan.md
+deploy.md
 design
 skills-lock.json
+prod-changes.md
+s3-lifecycle.json
+trust-policy.json
+policy.json
+ec2-user-data.sh
+AWSCLIV2.pkg

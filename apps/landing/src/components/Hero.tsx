@@ -28,7 +28,7 @@ export function Hero({ onWaitlist }: HeroProps) {
             </p>
             <div className="hero-cta">
               <button className="btn btn-primary btn-lg" type="button" onClick={onWaitlist}>Revisar un curso →</button>
-              <a className="btn btn-outline btn-lg" href="#how">Ver cómo funciona</a>
+              <button className="btn btn-outline btn-lg" type="button" onClick={onWaitlist}>Ver cómo funciona</button>
             </div>
             <div className="hero-meta" role="list">
               <span className="item" role="listitem">

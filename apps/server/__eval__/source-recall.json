@@ -3,7 +3,7 @@
     "phase": 4,
     "fixtureSource": "phil411-bibliography",
     "language": "en",
-    "embedModel": "cohere.embed-multilingual-v3",
+    "embedModel": "amazon.titan-embed-text-v2:0",
     "passThreshold": 8,
     "totalQueries": 10,
     "description": "Each query's expected source must appear in top-3 (NOT top-1 — sources are longer than fragments and exact passage retrieval is harder). Eight or more passes the gate."

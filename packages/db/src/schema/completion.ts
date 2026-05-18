@@ -36,7 +36,7 @@ export const completions = pgTable(
     confidence: numeric("confidence", { precision: 6, scale: 4 }),
     // Snapshot what produced this row, so re-embed/regen targets correctly.
     // Mirrors note_fragment_embeddings.model_id pattern (per prod-changes §1).
-    modelId: text("model_id").notNull(),             // e.g. "anthropic.claude-sonnet-4-..." or "ollama:gemma4:e4b"
+    modelId: text("model_id").notNull(),             // e.g. "amazon.nova-lite-v1:0" or "ollama:gemma4:e4b"
     embedModelId: text("embed_model_id").notNull(),  // model used for guard re-similarity
     promptHash: text("prompt_hash").notNull(),       // sha256(system+subject+concept layers); identifies cache identity
     // Diagnostics for the cost badge + eval harness.

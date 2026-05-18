@@ -3,7 +3,7 @@
     "phase": 1,
     "fixtureSource": "stub",
     "language": "es",
-    "embedModel": "cohere.embed-multilingual-v3",
+    "embedModel": "amazon.titan-embed-text-v2:0",
     "passThreshold": 8,
     "totalQueries": 10,
     "description": "Each query's expected fragment must appear top-1 in the cosine retrieval. Eight or more passes the gate; below stops Phase 2 work."

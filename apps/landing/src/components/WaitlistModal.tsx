@@ -206,20 +206,20 @@ export function WaitlistModal({ isOpen, onClose }: WaitlistModalProps) {
                 <path d="M5 13l4 4L19 7" />
               </svg>
             </div>
-            <h3>Estás en la lista.</h3>
+            <h3>Solicitud recibida.</h3>
             <p>
-              Te escribiremos cuando NoeticAI abra. Mientras tanto, el mapa sigue
+              Te escribimos cuando se abra tu tanda. Mientras tanto, el mapa sigue
               incompleto.
             </p>
           </div>
         ) : (
           <>
-            <div className="modal-eyebrow">Lista de espera</div>
+            <div className="modal-eyebrow">Beta cerrada</div>
             <h2 className="modal-title" id="modal-title">
-              Sé el primero en auditar.
+              Entrar a la beta cerrada de NoeticAI
             </h2>
             <p className="modal-sub">
-              NoeticAI está en desarrollo. Apúntate y te avisamos en cuanto abra.
+              Estamos abriendo el acceso por tandas. Déjanos tus datos y te escribimos cuando te toque.
             </p>
 
             <form className="wl-form" onSubmit={handleSubmit} noValidate>
@@ -320,7 +320,7 @@ export function WaitlistModal({ isOpen, onClose }: WaitlistModalProps) {
                 aria-label={
                   formState === "submitting"
                     ? "Enviando, por favor espera"
-                    : "Unirse a la lista de espera"
+                    : "Solicitar acceso a la beta cerrada"
                 }
               >
                 {formState === "submitting" ? (
@@ -329,7 +329,7 @@ export function WaitlistModal({ isOpen, onClose }: WaitlistModalProps) {
                     Enviando…
                   </>
                 ) : (
-                  "Unirme a la lista de espera"
+                  "Solicitar acceso a la beta"
                 )}
               </button>
 

@@ -20,6 +20,10 @@ const WaitlistModal = lazy(() =>
   import("./components/WaitlistModal").then((m) => ({ default: m.WaitlistModal }))
 );
 
+const FlowAnimationSection = lazy(() =>
+  import("./components/FlowAnimationSection").then((m) => ({ default: m.FlowAnimationSection }))
+);
+
 export function App() {
   const [modalOpen, setModalOpen] = useState(false);
 
@@ -35,7 +39,10 @@ export function App() {
     };
     const idle = w.requestIdleCallback ?? ((cb: () => void) => window.setTimeout(cb, 1000) as unknown as number);
     const cancel = w.cancelIdleCallback ?? ((h: number) => window.clearTimeout(h));
-    const handle = idle(() => { void import("./components/WaitlistModal"); });
+    const handle = idle(() => {
+      void import("./components/WaitlistModal");
+      void import("./components/FlowAnimationSection");
+    });
     return () => cancel(handle);
   }, []);
 
@@ -61,6 +68,34 @@ export function App() {
           <Hero onWaitlist={openWaitlist} />
           <div className="cv-section cv-section--in-plain-words">
             <InPlainWords />
+          </div>
+          <div className="cv-section cv-section--flow-animation">
+            <Suspense
+              fallback={
+                <div
+                  style={{
+                    height: 560,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <span
+                    style={{
+                      fontFamily: "var(--mono)",
+                      fontSize: 11,
+                      letterSpacing: "0.18em",
+                      color: "var(--fg-faint)",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    cargando animación…
+                  </span>
+                </div>
+              }
+            >
+              <FlowAnimationSection />
+            </Suspense>
           </div>
           <div className="cv-section cv-section--trust">
             <Trust />

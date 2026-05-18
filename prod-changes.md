@@ -11,16 +11,18 @@
 
 - [ ] **Flip `NOETICAI_AI_BACKEND=bedrock`** in production env. Currently `ollama` in `apps/server/.env`.
 - [ ] **Replace AWS placeholders** in env: real `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` (or use IAM role on the compute), and `AWS_REGION=us-east-1`.
-- [ ] **Pin Bedrock model IDs** by reading them off the Bedrock → Model access page in your AWS account. The IDs in `.env.example` are placeholders. For Opus + Sonnet prefer the cross-region inference profile form (`us.anthropic.…`).
-- [ ] **Re-embed everything**. Local dev produced rows under `model_id = bge-m3`. Production reads under `model_id = cohere.embed-multilingual-v3`. Either:
+- [ ] **Pin Bedrock model IDs** by reading them off the Bedrock → Model access page in your AWS account. The IDs in `.env.example` are AWS-native Nova / Titan defaults; for Nova Pro + Nova Lite prefer the cross-region inference profile form (`us.amazon.nova-*-v1:0`) once `aws bedrock list-inference-profiles --region us-east-1` confirms availability.
+- [ ] **Re-embed everything**. Local dev produced rows under `model_id = bge-m3`. Production reads under `model_id = amazon.titan-embed-text-v2:0`. Either:
   - Run a one-off re-embed job (preferred — no data loss, model_id is per-row).
-  - Or `DELETE FROM note_fragment_embeddings WHERE model_id = 'bge-m3'` then re-ingest.
+  - Or `DELETE FROM note_fragment_embeddings WHERE model_id IN ('bge-m3', 'cohere.embed-multilingual-v3')` then re-ingest. The `cohere…` filter clause covers any prior Bedrock smoke-test data; if the operator never ran the prior Bedrock smoke, only `bge-m3` will match.
 
 ## 2. Model-quality gates that were skipped on Ollama
 
 These eval thresholds were calibrated against Bedrock (Sonnet/Haiku/Opus) and CANNOT pass on local Gemma. Ship is gated on:
 
-- [ ] **Phase 2 — syllabus extraction precision ≥ 0.85** vs. golden corpus (`apps/server/__eval__/syllabus-fixture.pdf` + golden labels). Re-run with `NOETICAI_AI_BACKEND=bedrock` once Opus is live.
+- [ ] **Calibration warning (Nova migration)**: the verdict, citation, hallucination, and cache-hit gates below were originally calibrated against Anthropic Claude (Opus/Sonnet/Haiku) responses and Cohere v3 cosines. The migration to Amazon Nova + Titan v2 may shift pass/fail rates. **Treat eval gate results as informational on the first post-migration run** — do NOT block deploy on a regressed gate this round; capture deltas and re-tune thresholds in a follow-up. See plan.md §4.6 + `apps/web/src/lib/cost-rates.ts` for the cost-UI corollary.
+
+- [ ] **Phase 2 — syllabus extraction precision ≥ 0.85** vs. golden corpus (`apps/server/__eval__/syllabus-fixture.pdf` + golden labels). Re-run with `NOETICAI_AI_BACKEND=bedrock` once Nova Pro is live.
   - **Dev caveat**: `llm.opus(...)` routes through `gemma4:e4b` when `NOETICAI_AI_BACKEND=ollama`. The
     extraction prompt is instrumented for JSON-only output but the smaller model will produce noisier
     concept trees — incomplete units, merged concepts, or spurious top-level prose. This is expected
@@ -28,22 +30,24 @@ These eval thresholds were calibrated against Bedrock (Sonnet/Haiku/Opus) and CA
     The 0.85 precision gate only counts on Bedrock.
   - **JSON leniency warning**: `apps/server/src/syllabus/job.ts` `parseLlmResponse()` strips markdown
     fences and falls back to a first-`{…}`-block regex extraction to survive Ollama's output quirks.
-    This leniency may mask a contract regression in the Bedrock Opus response when you flip the
+    This leniency may mask a contract regression in the Bedrock Nova Pro response when you flip the
     backend. Re-run the eval harness immediately after switching to Bedrock to catch this.
-- [ ] **Phase 3 — verdict accuracy ≥ 0.85** on the 200-tuple golden corpus.
-- [ ] **Phase 5 — citation precision ≥ 0.95** on the 30-tuple corpus.
-- [ ] **Phase 5 — hallucination guard fixture returns null 100%** of the time.
-- [ ] **Phase 5 — cache-hit rate ≥ 70%** on a sequential 80-concept sweep (Bedrock Converse usage fields).
+- [ ] **Phase 3 — verdict accuracy ≥ 0.85** on the 200-tuple golden corpus. *(Threshold authored against Haiku; treat first Nova Micro run as informational per the calibration warning above.)*
+- [ ] **Phase 5 — citation precision ≥ 0.95** on the 30-tuple corpus. *(Authored against Sonnet + Cohere v3; treat first Nova Lite + Titan v2 run as informational.)*
+- [ ] **Phase 5 — hallucination guard fixture returns null 100%** of the time. *(Cohere-v3-calibrated similarity floor; treat first run as informational.)*
+- [ ] **Phase 5 — cache-hit rate ≥ 70%** on a sequential 80-concept sweep (Bedrock Converse usage fields). *(Requires Nova cachePoint smoke-test pass; see §4 below.)*
 
 Two of these are kill criteria (Phase 3, Phase 5). Ollama can run the plumbing; only Bedrock can satisfy the gates.
 
 ## 3. Quota tickets
 
-- [ ] File AWS Service Quotas increases for **Claude Sonnet** and **Claude Haiku** in `us-east-1` — both "On-demand model inference requests per minute" and "…tokens per minute". Defaults are tight; ask for ~5×.
-- [ ] Verify Cohere Embed quota holds during a real-data ingest. Re-evaluate if it throttles.
+- [ ] File AWS Service Quotas increases for **Amazon Nova Lite** and **Amazon Nova Micro** in `us-east-1` — both "On-demand model inference requests per minute" and "…tokens per minute". Defaults are tight; ask for ~5×.
+- [ ] Verify Titan v2 embed quota holds during a real-data ingest (default TPM for Titan v2 is generous; the prior Cohere risk is moot but still worth a smoke check).
+- [ ] Nova Pro inference is rare (syllabus extraction only); default quota is fine unless you batch-import a backlog.
 
 ## 4. Prompt caching
 
+- [ ] **Nova cachePoint smoke check**: after Bedrock cutover, run the smoke-test in deploy.md §12 against all three Nova tier IDs with a small cachePoint-bearing Converse call. If any tier returns a 4xx for the `cachePoint` marker, set `NOETICAI_NOVA_CACHE_DISABLED=1` and add a defensive stripper in `packages/ai/src/bedrock.ts` that removes `cachePoint` blocks when `modelId` matches `^amazon\.nova-` and the env flag is set. **Do not lean on the cost model (plan.md §4.5) until this check passes.**
 - [ ] Wire `cachePoints` arg in `packages/ai/src/bedrock.ts` into Bedrock Converse `cachePoint` markers (currently a stub). Layers: `system` / `subject context` / `concept context`. Retrieved chunks **never** cached.
 - [ ] Add a CI gate: cache-hit rate on a fixed corpus drops > 10 points → fail.
 
@@ -79,16 +83,16 @@ the dev loop fast on Ollama. Each must be closed before shipping.
   Re-run the eval harness (`apps/server/__eval__/syllabus-extraction.test.ts`) on Bedrock.
 - [ ] **JSON leniency in `parseLlmResponse`** (`apps/server/src/syllabus/job.ts`): strips markdown
   fences and falls back to first-`{…}`-block regex to handle Ollama output. Once on Bedrock, verify
-  Opus returns bare JSON as instructed; remove the regex fallback if it stops being needed — its
+  Nova Pro returns bare JSON as instructed; remove the regex fallback if it stops being needed — its
   presence masks prompt-contract drift.
 - [ ] **Extraction system prompt is in English** (`apps/server/src/syllabus/prompt.ts`): the
   original Spanish system prompt caused gemma to translate JSON keys (`subject` → `titulo`,
   `units` → `unidades`, `concepts` → `conceptos`), breaking the zod parser. Switching to an
   English system prompt with explicit "do not translate the keys" guidance fixed it.
-  Once on Bedrock with Opus, the Spanish prompt should also work; revisit if you want a
+  Once on Bedrock with Nova Pro, the Spanish prompt should also work; revisit if you want a
   pure-Spanish dev experience.
 - [ ] **`maxTokens` raised to 16384 for syllabus extraction** (`apps/server/src/syllabus/job.ts`):
-  gemma is verbose and was clipping mid-string at 8K. Bedrock Opus returns much tighter JSON;
+  gemma is verbose and was clipping mid-string at 8K. Bedrock Nova Pro returns much tighter JSON;
   consider lowering back to 8192 in production to save output tokens (the cost-budget table in
   plan.md §4.5 assumes ~2K out per syllabus).
 - [ ] **`trySalvageTruncatedJson` recovery in `parseLlmResponse`** (`apps/server/src/syllabus/job.ts`):
@@ -99,8 +103,8 @@ the dev loop fast on Ollama. Each must be closed before shipping.
   go to `apps/server/uploads/syllabuses/` on disk. Switch to S3/R2 for production (item already
   tracked in §6 above). The `storeSyllabusPdf` function is the only call site; swap the impl there.
 - [ ] **Concept embeddings use Ollama `bge-m3`** in dev (`model_id = bge-m3`). Run a re-embed job
-  against the Cohere multilingual model after switching to Bedrock. Old rows stay inert under their
-  `model_id`; new rows write fresh. See §1 re-embed checklist above.
+  against the Titan v2 model (`amazon.titan-embed-text-v2:0`) after switching to Bedrock. Old rows
+  stay inert under their `model_id`; new rows write fresh. See §1 re-embed checklist above.
 
 ---
 
@@ -118,7 +122,7 @@ the dev loop fast on Ollama. Each must be closed before shipping.
   in `apps/server/src/ai/json.ts` (factored out of `syllabus/job.ts` in
   Phase 3). The same leniency layers (markdown-fence stripping, outermost-
   block extraction, depth-aware truncation salvage) that mask Ollama quirks
-  may also mask Haiku contract drift. After the Bedrock cutover, re-run the
+  may also mask Nova Micro contract drift. After the Bedrock cutover, re-run the
   Phase 3 eval harness and remove leniency layers if they stop being needed.
 - [ ] **Embedding model_id invariant**: Phase 3 alignment retrieval filters
   *both* `concept_embeddings` and `note_fragment_embeddings` on
@@ -132,23 +136,23 @@ the dev loop fast on Ollama. Each must be closed before shipping.
     finds zero matching pairs.
 - [ ] **Audit worker concurrency=1**. The audit BullMQ worker currently caps
   at `concurrency: 1` in `apps/server/src/queue/index.ts`. This serialises
-  audit fan-out (Haiku × 80 concepts) to keep the in-process Bun event loop
+  audit fan-out (Nova Micro × 80 concepts) to keep the in-process Bun event loop
   responsive while the HTTP server shares the same process. Once we split
   workers into `apps/worker` (already tracked in §7), lift `audit` to ≥4 and
-  the per-Haiku-concurrency cap inside `align.ts` becomes the new bottleneck
+  the per-Nova-Micro-concurrency cap inside `align.ts` becomes the new bottleneck
   (currently 4; bump to 8 once Bedrock quotas are increased).
 - [ ] **Local PDF storage already covered** — Phase 3 doesn't add new
   storage. Bibliography uploads in Phase 4 will trip the same shortcut
   (already tracked in §6).
 - [ ] **Bedrock cache-points still stubbed** — Phase 3 doesn't lean on
-  prompt caching (Haiku's verdict prompts are small enough to be cheap
+  prompt caching (Nova Micro's verdict prompts are small enough to be cheap
   uncached). Phase 5 grounded completion will. The `cachePoints` arg in
   `packages/ai/src/bedrock.ts` remains a stub (already tracked in §4).
 - [ ] **Verdict-batch graceful degradation**. `apps/server/src/audit/align.ts`
-  catches empty/unparseable Haiku responses per concept, logs a warning, and
+  catches empty/unparseable Nova Micro responses per concept, logs a warning, and
   skips the concept (treats all its candidates as off-topic, so the
   mastery_score lands red). This is dev resilience for gemma occasionally
-  refusing array-output prompts. On Bedrock + Haiku the catch should
+  refusing array-output prompts. On Bedrock + Nova Micro the catch should
   effectively never trigger — if it does fire in production, the
   kill-criterion eval will degrade silently. Add a counter / metric for
   `verdict_batch_failed` per audit run before shipping, and fail the run if
@@ -158,7 +162,7 @@ the dev loop fast on Ollama. Each must be closed before shipping.
   `hallucinationGuardSimilarity=0.7`) when `NOETICAI_AI_BACKEND=ollama`,
   and the spec defaults (`0.78 / 0.55 / 0.85` from
   `@noeticai/audit-core`'s `DEFAULT_THRESHOLDS`) on Bedrock. bge-m3
-  produces lower absolute cosine scores than Cohere v3 — without this
+  produces lower absolute cosine scores than Titan v2 — without this
   override, dogfood audits land all-red even when the pipeline is
   healthy. **Implication for the kill-criterion gate**: the Phase 3
   eval (verdict accuracy ≥ 0.85, gap precision/recall ≥ 0.85) must run
@@ -166,6 +170,14 @@ the dev loop fast on Ollama. Each must be closed before shipping.
   `DEFAULT_THRESHOLDS`, not the dev override. Delete
   `DEV_OLLAMA_THRESHOLDS` once Phase 7e ships per-subject threshold
   tuning — the user surface replaces the env-toggled override.
+- [ ] **Titan v2 cosine distribution NOT re-calibrated**. `DEFAULT_THRESHOLDS`
+  in `@noeticai/audit-core` (greenDepth=0.78, amberDepth=0.55,
+  hallucinationGuardSimilarity=0.85) were authored against Cohere v3 cosines.
+  Titan v2 cosines may run higher or lower; `normalize: false` was picked
+  specifically to keep the distribution close to v3 but it is NOT verified.
+  Add a calibration sweep against the Phase 3 golden corpus AFTER the first
+  real Nova/Titan audit run, then either retune the constants or accept the
+  shift. Block: this requires real Bedrock data; cannot be done on Ollama.
 
 ---
 
@@ -178,10 +190,10 @@ the dev loop fast on Ollama. Each must be closed before shipping.
   go to `apps/server/uploads/sources/` on disk. Switch to S3/R2 for production (already
   tracked in §6 above). The `storeSourcePdf` function is the only call site; swap the impl there.
 - [ ] **Source chunk embeddings use Ollama `bge-m3`** in dev (`model_id = bge-m3`). Run a re-embed
-  job against the Cohere multilingual model after switching to Bedrock. The §1 re-embed plan
-  must now cover **three** tables: `note_fragment_embeddings`, `concept_embeddings`, and
-  `source_chunk_embeddings`. Without all three under the same `model_id`, Phase 5 retrieval
-  finds zero matches.
+  job against the Titan v2 model (`amazon.titan-embed-text-v2:0`) after switching to Bedrock.
+  The §1 re-embed plan must now cover **three** tables: `note_fragment_embeddings`,
+  `concept_embeddings`, and `source_chunk_embeddings`. Without all three under the same
+  `model_id`, Phase 5 retrieval finds zero matches.
 - [ ] **No OCR for scanned PDFs**. The chunker throws if `unpdf` returns near-empty page text;
   the source row lands `status='failed'` with a clear message. v1.1 task: integrate a
   Bedrock-Textract or Tesseract path for image-only PDFs.
@@ -200,7 +212,7 @@ the dev loop fast on Ollama. Each must be closed before shipping.
   exponential-backoff retry per `plan.md` §9 retry block (`attempts: 5, backoff: { type:
   'exponential', delay: 2000 }`) on transient errors only — distinguish HTTP 503 / quota
   throttle from "URL returned 404". Pre-Bedrock-cutover, this is moot (Ollama embed
-  doesn't throttle); it becomes load-bearing once we hit Cohere quota.
+  doesn't throttle); it becomes load-bearing once we hit Titan v2 quota.
 
 ---
 
@@ -238,19 +250,21 @@ the dev loop fast on Ollama. Each must be closed before shipping.
   (`cacheReadInputTokens`/`cacheWriteInputTokens`) is always 0 on Ollama — the
   cache-hit gate (≥ 70%) only counts on Bedrock. The cachePoint wiring on Bedrock
   is implemented in `packages/ai/src/bedrock.ts` (closing `prod-changes.md` §4).
-- [ ] **`apps/web/src/lib/cost-rates.ts` is hardcoded** to Sonnet 4 us-east-1
-  rates as of the Phase 5 implementation date. When AWS publishes rate changes,
+- [ ] **`apps/web/src/lib/cost-rates.ts` is hardcoded** to **Nova Lite** us-east-1
+  rates as of 2026-05-17 (post-cutover values). The constants are still named
+  `SONNET_*` because they represent the tier role, not the underlying family.
+  When AWS publishes rate changes or distinct Nova cache-read/cache-write SKUs,
   update this file. Promote to a server-config endpoint when the `cost_events`
   table lands (Phase 7g).
 - [ ] **Completion worker concurrency=1**: `apps/server/src/queue/index.ts` caps
   the completion worker at concurrency 1 (matches the existing audit pattern).
   Spec (`plan.md` §9) calls for concurrency 6. Lift to 4 once `apps/worker` is
-  split per §7 above; lift to 6 once Sonnet quota raises land.
+  split per §7 above; lift to 6 once Nova Lite quota raises land.
 - [ ] **Completion `attempts: 1` (no retry)**: `enqueueCompletion` enqueues with
   `attempts: 1` rather than the spec's `attempts: 5, exponential backoff`.
-  Reasoning: Sonnet calls are expensive and we want guard-failure visibility, not
+  Reasoning: Nova Lite calls are cheap but we want guard-failure visibility, not
   silent retry to success. Once we have a way to distinguish transient infra
-  errors (Bedrock 503, Cohere quota) from model misbehavior (telemetry from
+  errors (Bedrock 503, Titan v2 quota) from model misbehavior (telemetry from
   Phase 7c), revisit this.
 - [ ] **`recordUsage` is still a `console.log` stub** (already tracked under §5
   above). Phase 5 is the first feature that makes `recordUsage` *load-bearing*
@@ -262,15 +276,19 @@ the dev loop fast on Ollama. Each must be closed before shipping.
 - [ ] **Retrieval similarity floor is backend-dependent**. `apps/server/src/completion/retrieve.ts`
   hardcodes `SIMILARITY_FLOOR = 0.4` when `NOETICAI_AI_BACKEND === "ollama"` and `0.55` on
   Bedrock. Spec (`plan.md` §1.6) calls for 0.55 — the override exists because bge-m3 produces
-  cosines ~0.10–0.20 lower than Cohere v3, so the spec floor returns zero chunks even for
+  cosines ~0.10–0.20 lower than Titan v2, so the spec floor returns zero chunks even for
   relevant sources during dev. Same root cause as `DEV_OLLAMA_THRESHOLDS` in
   `apps/server/src/audit/router.ts`. Delete the override once Phase 7e ships per-subject
   threshold tuning, OR fold it into the same per-subject threshold snapshot the audit reads.
+  **Calibration callout (Nova migration)**: the Bedrock branch floor (`0.55`) was authored
+  against Cohere v3. Titan v2 (`normalize: false`) is expected to land in the same band but
+  is NOT verified — treat the first post-migration Phase 5 retrieval eval as a calibration
+  baseline, not a pass/fail.
 - [ ] **No re-similarity caching for the guard**: each guard call re-embeds
-  `(paragraph, cited_chunk)` pairs to compute similarity. On Bedrock with Cohere
-  v3 these embed calls cost real money (~$0.001 per completion in extra embed).
-  Acceptable for v1; cache the per-paragraph embedding by content hash if Phase
-  7g cost dashboards show this as significant.
+  `(paragraph, cited_chunk)` pairs to compute similarity. On Bedrock with Titan
+  v2 these embed calls cost ~$0.0002 per completion in extra embed (under
+  Titan v2 the extra embed cost drops from ~$0.001 to ~$0.0002/completion;
+  deprioritize until Phase 7g cost dashboards land).
 - [ ] **`thresholdsHash` derivation is `String(hallucinationGuardSimilarity)`**.
   In `apps/server/src/completion/job.ts` the cache key thresholds-hash is the
   raw threshold value as a string. This is stable for the same threshold value
